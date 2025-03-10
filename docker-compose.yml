@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    environment:
+      - DEBUG=True
+      - API_KEY=${API_KEY}
