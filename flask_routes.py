@@ -114,10 +114,15 @@ def execute_code():
             # Get the title if it exists
             title = fig._suptitle.get_text() if fig._suptitle else f"Figure {i+1}"
             
-            # Add figure description to conversation history
+            # Add figure to conversation history
             conversation_history.append({
                 "role": "figure",
-                "content": f"{title} - This figure shows a plot of the data."
+                "content":                 {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{img_str}",
+                    },
+                }
             })
             
         print(f"Final conversation history length: {len(conversation_history)}")

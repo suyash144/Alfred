@@ -54,29 +54,70 @@ class LLMResponse(BaseModel):
 def build_llm_prompt(conversation_history):
     """
     Build a prompt for the LLM, incorporating the current conversation history.
-    We'll append the NOW_CONTINUE_TEXT at the end.
+    For text entries, we maintain the existing format.
+    For figure entries, we now handle them specially to be passed as images.
     """
+    # We'll store content parts for the final user message
+    content_parts = []
+    # And normal text history for context as before
     history_text = []
+    
+    # First build the text history as before for context
     for entry in conversation_history:
         role = entry.get("role", "user")
         content = entry.get("content", "")
         
-        # Add special handling for figure entries
+        # Add special handling for figure entries in the text representation
         if role == "figure":
-            history_text.append(f"ASSISTANT SAYS: [Generated a figure: {content}]")
+            history_text.append(f"ASSISTANT SAYS: [Generated a figure]")
         else:
             history_text.append(f"{role.upper()} SAYS: {content}")
 
     history_text_str = "\n".join(history_text)
 
-    prompt = (
+    # Create the text prompt
+    text_prompt = (
         "Below is the conversation so far, including user feedback and "
         "assistant's previous analysis or error messages (if any). Then "
         "provide your new output:\n\n"
         f"{history_text_str}\n\n"
         f"{NOW_CONTINUE_TEXT}\n"
     )
-    return prompt
+    
+    # Add the text as the first content part
+    content_parts.append({
+        "type": "text",
+        "text": text_prompt
+    })
+    
+    # Now add any figures from the most recent part of the conversation
+    # Typically we might want to include only the last few entries or 
+    # figures specifically marked for inclusion
+    for entry in conversation_history[-5:]:  # Consider just the last 5 entries
+        if entry.get("role") == "figure":
+            fig_content = entry.get("content")          # this is a dictionary
+            url_dict = fig_content["image_url"]
+            fig_content = url_dict["url"]
+            
+            # If the content is already a matplotlib figure
+            if isinstance(fig_content, plt.Figure):
+                base64_img = fig_to_base64(fig_content)
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{base64_img}"
+                    }
+                })
+            # If the content is a base64 string already
+            elif isinstance(fig_content, str) and fig_content.startswith("data:image"):
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": fig_content
+                    }
+                })
+    
+    return content_parts
 
 ###############################################################################
 # Execute code in shared namespace, capturing stdout, figures, and errors
@@ -109,8 +150,8 @@ def run_and_capture_output(code):
     sys.stdout = old_stdout
     output_text = redirected_output.getvalue()
 
-    if len(output_text) == 0:
-        output_text = "Please make sure your code prints something to stdout. Otherwise you will not be able to see its results."
+    if len(output_text) == 0 and len(figures) == 0:
+        output_text = "Please make sure your code prints something to stdout or generates some figures. Otherwise you will not receive any information."
 
     return output_text, figures, error_flag
 
