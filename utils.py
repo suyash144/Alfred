@@ -6,7 +6,13 @@ import openai
 import base64
 
 
-MODEL_NAME = "gpt-4o-2024-11-20"
+# MODEL_NAME = "gpt-4o-2024-11-20"
+if os.environ.get('MODEL')=="4o":
+    MODEL_NAME = "gpt-4o-2024-11-20"
+elif os.environ.get('MODEL')=="o1":
+    MODEL_NAME = "o1-2024-12-17"
+else:
+    MODEL_NAME = "gpt-4o-2024-11-20"
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant designed to perform iterative exploratory data "
