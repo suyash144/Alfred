@@ -53,6 +53,43 @@
             width: 3rem;
             height: 3rem;
         }
+        .history-figure {
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+            background-color: #f9f9f9;
+            text-align: center;
+        }
+        .figure {
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px dashed #ccc;
+            margin: 15px 0;
+        }
+        .figure-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .history-figure img {
+            max-width: 100%;
+            max-height: 200px;
+            object-fit: contain;
+        }
+        .history-entry.figure {
+            background-color: #f0f8ff;
+            border-left: 3px solid #4a86e8;
+        }
+        .history-entry {
+            margin-bottom: 12px;
+            padding: 10px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
@@ -293,15 +330,113 @@
             
             // Update conversation history
             function updateConversationHistory() {
-                $.ajax({
-                    url: '/get_analysis',  // Reusing this endpoint to get current state
-                    type: 'GET',
-                    success: function(response) {
-                        // This will trigger a page refresh to show updated history
-                        location.reload();
+                fetch('/debug/history')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            // Refresh the page to show updated conversation with figures
+                            location.reload();
+                        } else {
+                            alert('Error: ' + data.output);
+                        }
+                        // Update the conversation container with new entries
+                        const conversationContainer = document.querySelector('.conversation-container');
+                        // Clear existing content
+                        conversationContainer.innerHTML = '';
+                        
+                        // Add each entry from the history
+                        data.history.forEach(entry => {
+                            const messageDiv = document.createElement('div');
+                            messageDiv.className = `message ${entry.role}`;
+                            
+                            if (entry.role === 'figure') {
+                                messageDiv.innerHTML = `<img src="${entry.content}" alt="Generated Figure" class="figure-image">`;
+                            } else {
+                                messageDiv.innerHTML = `
+                                    <strong>${entry.role.charAt(0).toUpperCase() + entry.role.slice(1)}:</strong>
+                                    <div class="content">${entry.content.replace(/\n/g, '<br>')}</div>
+                                `;
+                            }
+                            
+                            conversationContainer.appendChild(messageDiv);
+                        });
+                    });
+            }
+            
+            document.getElementById('execute-code').addEventListener('click', function() {
+                const code = document.getElementById('code-display').textContent;
+                const summary = document.querySelector('.code-summary').textContent || '';
+                
+                // Show a loading indicator
+                const loadingIndicator = document.createElement('div');
+                loadingIndicator.className = 'loading-indicator';
+                loadingIndicator.textContent = 'Executing code...';
+                document.querySelector('.conversation-container').appendChild(loadingIndicator);
+                
+                fetch('/execute_code', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        code: code,
+                        summary: summary
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Remove loading indicator
+                    document.querySelector('.loading-indicator').remove();
+                    
+                    if (data.status === 'success') {
+                        // Update the conversation instead of reloading
+                        updateConversationHistory();
+                        
+                        // Clear the code display area for the next iteration
+                        document.getElementById('code-section').style.display = 'none';
+                    } else {
+                        alert('Error: ' + data.output);
+                        // Still update the conversation to show the error
+                        updateConversationHistory();
                     }
                 });
-            }
+            });
+
+            // Similarly for the Submit Feedback button
+            document.getElementById('submit-feedback').addEventListener('click', function() {
+                const feedback = document.getElementById('feedback').value;
+                if (!feedback.trim()) {
+                    alert('Please enter some feedback');
+                    return;
+                }
+                
+                const code = document.getElementById('code-display').textContent || '';
+                const summary = document.querySelector('.code-summary')?.textContent || '';
+                
+                fetch('/send_feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        feedback: feedback,
+                        summary: summary,
+                        code: code
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Clear the feedback textarea
+                        document.getElementById('feedback').value = '';
+                        
+                        // Update conversation history without reloading
+                        updateConversationHistory();
+                    } else {
+                        alert('Error sending feedback');
+                    }
+                });
+            });
 
             // Function to refresh conversation history with direct DOM manipulation
             function refreshConversationHistory() {
@@ -329,24 +464,46 @@
                                 response.history.forEach(function(entry) {
                                     let roleClass = 'user';
                                     let roleDisplay = 'USER';
+                                    let entryHtml = '';
                                     
                                     if (entry.role === 'assistant') {
                                         roleClass = 'assistant';
                                         roleDisplay = 'ASSISTANT';
+                                        // For non-figure entries
+                                        const formattedContent = typeof entry.content === 'string' 
+                                            ? entry.content.replace(/\n/g, '<br>') 
+                                            : JSON.stringify(entry.content);
+                                        
+                                        entryHtml = `
+                                            <div class="history-entry ${roleClass}">
+                                                <strong>${roleDisplay}:</strong>
+                                                <div>${formattedContent}</div>
+                                            </div>
+                                        `;
                                     } else if (entry.role === 'figure') {
                                         roleClass = 'figure';
                                         roleDisplay = 'FIGURE';
+                                        
+                                        // Special handling for figure entries
+                                        entryHtml = `
+                                            <div class="history-entry ${roleClass}">
+                                                <img src="${entry.content}" alt="Figure" class="figure-image">
+                                            </div>
+                                        `;
+                                    } else {
+                                        // For non-figure entries
+                                        const formattedContent = typeof entry.content === 'string' 
+                                            ? entry.content.replace(/\n/g, '<br>') 
+                                            : JSON.stringify(entry.content);
+                                        
+                                        entryHtml = `
+                                            <div class="history-entry ${roleClass}">
+                                                <strong>${roleDisplay}:</strong>
+                                                <div>${formattedContent}</div>
+                                            </div>
+                                        `;
                                     }
                                     
-                                    // Format content properly, preserving newlines
-                                    const formattedContent = entry.content.replace(/\n/g, '<br>');
-                                    
-                                    const entryHtml = `
-                                        <div class="history-entry ${roleClass}">
-                                            <strong>${roleDisplay}:</strong>
-                                            <div>${formattedContent}</div>
-                                        </div>
-                                    `;
                                     historyDiv.append(entryHtml);
                                 });
                                 
@@ -367,7 +524,7 @@
                                 }
                             }
                         } else if (response.history.length === 0) {
-                            historyDiv.html('<p>No conversation history yet. Start by initializing the data and getting an analysis.</p>');
+                            historyDiv.html('<p>No conversation history yet. Start by initialising the data and getting an analysis.</p>');
                         }
                     },
                     error: function(error) {

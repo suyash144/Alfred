@@ -22,4 +22,4 @@ def initialize_data():
     ))
     
     analysis_namespace["x"] = x
-    return "Data initialized successfully"
+    return "Data initialised successfully"

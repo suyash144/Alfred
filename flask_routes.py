@@ -12,10 +12,27 @@ def index():
     # Format conversation history for display
     formatted_history = []
     for entry in conversation_history:
-        formatted_history.append({
-            "role": entry.get("role", ""),
-            "content": entry.get("content", "").replace("\n", "<br>")
-        })
+
+        role = entry.get("role", "")
+        content = entry.get("content", "")
+
+        if role == "figure":
+            # Handle figure entries differently
+            if isinstance(content, dict) and "image_url" in content:
+                print("Content has image_url")
+            else:
+                print(f"   Unexpected content structure: {content}")
+            image_url = content.get("image_url", {}).get("url", "")
+            formatted_history.append({
+                "role": "figure",
+                "content": image_url
+            })
+        else:
+            # Handle text entries as before
+            formatted_history.append({
+                "role": role,
+                "content": content.replace("\n", "<br>") if isinstance(content, str) else content
+            })
     
     return render_template('index.html', 
                           conversation_history=formatted_history)
@@ -134,7 +151,6 @@ def execute_code():
             "history_length": len(conversation_history)
         })
 
-
 @app.route('/debug/history', methods=['GET'])
 def debug_history():
     """
@@ -148,10 +164,26 @@ def debug_history():
     # Format conversation history for JSON response
     formatted_history = []
     for entry in conversation_history:
-        formatted_history.append({
-            "role": entry.get("role", "unknown"),
-            "content": entry.get("content", "")
-        })
+        role = entry.get("role", "")
+        content = entry.get("content", "")
+
+        if role == "figure":
+            # Handle figure entries differently
+            if isinstance(content, dict) and "image_url" in content:
+                print("Content has image_url")
+            else:
+                print(f"   Unexpected content structure: {content}")
+            image_url = content.get("image_url", {}).get("url", "")
+            formatted_history.append({
+                "role": "figure",
+                "content": image_url
+            })
+        else:
+            # Handle text entries as before
+            formatted_history.append({
+                "role": role,
+                "content": content.replace("\n", "<br>") if isinstance(content, str) else content
+            })
     
     return jsonify({
         "history_length": len(conversation_history),

@@ -91,9 +91,7 @@ def build_llm_prompt(conversation_history):
     })
     
     # Now add any figures from the most recent part of the conversation
-    # Typically we might want to include only the last few entries or 
-    # figures specifically marked for inclusion
-    for entry in conversation_history[-5:]:  # Consider just the last 5 entries
+    for entry in conversation_history:
         if entry.get("role") == "figure":
             fig_content = entry.get("content")          # this is a dictionary
             url_dict = fig_content["image_url"]
