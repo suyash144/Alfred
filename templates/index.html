@@ -258,7 +258,6 @@
                     url: '/initialize',
                     type: 'POST',
                     success: function (response) {
-                        $('.loading').hide();
                         alert(response.message);
                         // Clear conversation history
                         $('#conversation-history').empty();
