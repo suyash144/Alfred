@@ -23,7 +23,7 @@ SYSTEM_PROMPT = (
     "Do not output extra keys or any text outside the JSON. Your 'text_summary' "
     "should describe your current understanding of the data, your working hypotheses, "
     "and your next proposed analysis. Your 'python_code' should be a single Python "
-    "analysis snippet that the user can run. It is crucial that your code outputs something as this is what"
+    "analysis snippet that the user can run. It is crucial that your code outputs something using print statements or matplotlib figures as this is what"
     "you will receive as your next prompt. The Python snippet must also include any required import statements."
 )
 
