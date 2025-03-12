@@ -215,4 +215,27 @@ def send_feedback():
     
     print(f"Feedback route - Updated history length: {len(conversation_history)}")
     
-    return jsonify({"status": "success", "history_length": len(conversation_history)})
+    # Now automatically get the next analysis
+    client = get_openai_client()
+    prompt = build_llm_prompt(conversation_history)
+    
+    try:
+        llm_response = call_llm_and_parse(client, prompt)
+        
+        # Return both the success status and the new analysis
+        return jsonify({
+            "status": "success", 
+            "history_length": len(conversation_history),
+            "next_analysis": {
+                "summary": llm_response.text_summary,
+                "code": llm_response.python_code
+            }
+        })
+    except Exception as e:
+        print(f"Error getting next analysis after feedback: {str(e)}")
+        # If there's an error getting the next analysis, still return success for the feedback
+        return jsonify({
+            "status": "success", 
+            "history_length": len(conversation_history),
+            "error": str(e)
+        })

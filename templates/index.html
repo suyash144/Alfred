@@ -650,7 +650,7 @@
                 });
             });
 
-            // Send feedback
+            // Send feedback button
             $('#send-feedback-btn').click(function () {
                 const feedback = $('#feedback-input').val().trim();
                 if (!feedback) {
@@ -659,7 +659,7 @@
                 }
 
                 $('.loading').show();
-                console.log("Sending feedback...");
+                console.log("Sending feedback and getting next analysis...");
 
                 $.ajax({
                     url: '/send_feedback',
@@ -671,19 +671,53 @@
                         code: currentCode
                     }),
                     success: function (response) {
-                        $('.loading').hide();
                         console.log("Feedback response:", response);
 
                         // Clear feedback input
                         $('#feedback-input').val('');
 
-                        // Hide sections
-                        $('#summary-section, #code-section, #feedback-section').hide();
+                        // Hide sections during transition
+                        $('#summary-section, #code-section, #feedback-section, #output-section').hide();
+                        $('#figures-container').empty();
 
-                        console.log("Refreshing history, length:", response.history_length);
+                        // First refresh conversation history
+                        refreshConversationHistory();
 
-                        // Wait a moment to ensure server has processed
-                        setTimeout(refreshConversationHistory, 500);
+                        // Check if we have a next analysis from the server
+                        if (response.next_analysis) {
+                            // Update with the new analysis data
+                            currentSummary = response.next_analysis.summary;
+                            currentCode = response.next_analysis.code;
+
+                            // Display summary
+                            $('#summary-content').html(markdownToHtml(response.next_analysis.summary));
+                            $('#summary-section').show();
+
+                            // Display code
+                            $('#code-content').text(response.next_analysis.code);
+                            hljs.highlightElement(document.getElementById('code-content'));
+                            $('#code-section').show();
+
+                            // Show feedback section
+                            $('#feedback-section').show();
+
+                            // Set button to execute state
+                            setButtonState('execute');
+
+                            // Hide loading indicator when complete
+                            $('.loading').hide();
+
+                            // Final refresh of conversation history to ensure everything is up to date
+                            setTimeout(refreshConversationHistory, 500);
+                        } else if (response.error) {
+                            // If there was an error getting the next analysis
+                            $('.loading').hide();
+                            alert('Note: Your feedback was sent, but there was an error getting the next analysis: ' + response.error);
+                        } else {
+                            // If response doesn't contain next_analysis for some reason
+                            $('.loading').hide();
+                            alert('Your feedback was sent successfully, but no next analysis was received.');
+                        }
                     },
                     error: function (error) {
                         $('.loading').hide();
@@ -692,7 +726,7 @@
                     }
                 });
             });
-
+            
             // Update conversation history
             function updateConversationHistory() {
                 fetch('/debug/history')
