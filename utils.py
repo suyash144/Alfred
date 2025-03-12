@@ -11,6 +11,8 @@ if os.environ.get('MODEL')=="4o":
     MODEL_NAME = "gpt-4o-2024-11-20"
 elif os.environ.get('MODEL')=="o1":
     MODEL_NAME = "o1-2024-12-17"
+elif os.environ.get('MODEL')=="claude":
+    MODEL_NAME = "claude-3-7-sonnet-20250219"
 else:
     MODEL_NAME = "gpt-4o-2024-11-20"
 
@@ -22,7 +24,7 @@ SYSTEM_PROMPT = (
     "should describe your current understanding of the data, your working hypotheses, "
     "and your next proposed analysis. Your 'python_code' should be a single Python "
     "analysis snippet that the user can run. It is crucial that your code outputs something as this is what"
-    "you will receive as your next prompt."
+    "you will receive as your next prompt. The Python snippet must also include any required import statements."
 )
 
 # This is the fixed part of the user prompt appended at the end of conversation history
@@ -198,12 +200,22 @@ def call_llm_and_parse(client, prompt):
     return llm_response
 
 ###############################################################################
-# Function to get OpenAI client
+# Functions to get LLM clients
 ###############################################################################
 def get_openai_client():
     return openai.OpenAI(
         api_key=os.environ.get('API_KEY'),
     )
+
+def get_client(model_name):
+    if model_name=="4o" or model_name=="o1":
+        return get_openai_client()
+    elif model_name=="claude":
+        client = openai.OpenAI(
+            api_key=os.environ.get('API_KEY'),
+            base_url="https://api.anthropic.com/v1/"
+        )
+        return client
 
 ###############################################################################
 # Function to convert matplotlib figure to base64 for web display
