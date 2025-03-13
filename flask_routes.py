@@ -42,14 +42,26 @@ def init_data():
     global conversation_history
     conversation_history = []
     result = initialize_data()
+    if not os.getenv('API_KEY'):
+        raise ValueError ("API_KEY not found in environment variables. Please set this in order to use this tool.")
     return jsonify({"status": "success", "message": result})
 
 @app.route('/get_analysis', methods=['GET'])
 def get_analysis():
     # Get the full conversation history from session
     global conversation_history
-    
-    client = get_openai_client()
+
+    if os.getenv('MODEL', default=None):
+        client = get_client(os.environ.get('MODEL'))
+        if os.environ.get('MODEL') == "o1":
+            print("Using model: o1. This is better but much slower than GPT-4o.")
+        elif os.environ.get('MODEL') == "claude":
+            print("Using model: Claude 3.7 Sonnet.")
+        elif os.environ.get('MODEL') == "4o":
+            print("Using model: GPT-4o. This is the cheapest model to use per token.")
+    else:
+        client = get_openai_client()
+        print("Using default model: GPT-4o")
     prompt = build_llm_prompt(conversation_history)
     
     try:

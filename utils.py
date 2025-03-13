@@ -216,6 +216,8 @@ def get_client(model_name):
             base_url="https://api.anthropic.com/v1/"
         )
         return client
+    else:
+        raise ValueError("Invalid model name - choose 4o, o1, or claude")
 
 ###############################################################################
 # Function to convert matplotlib figure to base64 for web display
