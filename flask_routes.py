@@ -228,7 +228,10 @@ def send_feedback():
     print(f"Feedback route - Updated history length: {len(conversation_history)}")
     
     # Now automatically get the next analysis
-    client = get_openai_client()
+    if os.getenv('MODEL', default=None):
+        client = get_client(os.environ.get('MODEL'))
+    else:
+        client = get_openai_client()
     prompt = build_llm_prompt(conversation_history)
     
     try:

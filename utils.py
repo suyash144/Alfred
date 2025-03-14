@@ -27,6 +27,7 @@ SYSTEM_PROMPT = (
     "and your next proposed analysis. Your 'python_code' should be a single Python "
     "analysis snippet that the user can run. It is crucial that your code outputs something using print statements or matplotlib figures as this is what"
     "you will receive as your next prompt. The Python snippet must also include any required import statements."
+    "Ensure that your text and code do not contain any invalid escape sequences as this will cause an error."
 )
 
 # This is the fixed part of the user prompt appended at the end of conversation history
@@ -51,6 +52,15 @@ conversation_history = []
 class LLMResponse(BaseModel):
     text_summary: str
     python_code: str
+
+###############################################################################
+# Extract the actual base64 data from the data URL format
+###############################################################################
+def extract_base64_from_data_url(data_url):
+    # Find where the actual base64 data begins after the prefix
+    base64_start = data_url.find("base64,") + len("base64,")
+    # Return only the base64 part
+    return data_url[base64_start:]
 
 ###############################################################################
 # Build the prompt for the LLM
@@ -101,23 +111,48 @@ def build_llm_prompt(conversation_history):
             url_dict = fig_content["image_url"]
             fig_content = url_dict["url"]
             
-            # If the content is already a matplotlib figure
+            # If the content is a matplotlib figure
             if isinstance(fig_content, plt.Figure):
                 base64_img = fig_to_base64(fig_content)
-                content_parts.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/png;base64,{base64_img}"
-                    }
-                })
+            
             # If the content is a base64 string already
             elif isinstance(fig_content, str) and fig_content.startswith("data:image"):
-                content_parts.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": fig_content
-                    }
-                })
+                base64_img = fig_content
+            
+            if MODEL_NAME.startswith('claude'):
+                if base64_img.startswith("data:image"):
+                    content_parts.append({
+                        "type": "image",
+                        "source":{
+                            "type": "base64",
+                            "media_type":"image/png",
+                            "data": extract_base64_from_data_url(base64_img)
+                        }
+                    })
+                else:
+                    content_parts.append({
+                        "type": "image",
+                        "source":{
+                            "type": "base64",
+                            "media_type":"image/png",
+                            "data": base64_img
+                        }
+                    })
+            else:
+                if base64_img.startswith("data:image"):
+                    content_parts.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": fig_content
+                        }
+                    })
+                else:
+                    content_parts.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{base64_img}"
+                        }
+                    })
     
     return content_parts
 
@@ -171,6 +206,36 @@ def collect_matplotlib_figures():
     return figs
 
 ###############################################################################
+# Extract a JSON dictionary from a string (removing other text)
+###############################################################################
+def extract_json_dict(text):
+    """
+    Extract a potential JSON dictionary by removing any text before the first '{' and after the last '}'.
+    
+    Args:
+        text (str): Input string that may contain a JSON dictionary.
+        
+    Returns:
+        tuple: (is_valid, result)
+            is_valid (bool): True if a valid JSON dictionary was extracted
+            result (dict or str): Extracted dictionary if valid, original extracted string if not
+    """
+    # Find the first opening brace
+    start_index = text.find('{')
+    if start_index == -1:
+        return {"text_summary":"No JSON dictionary found - please ensure your response is a valid JSON dictionary."}
+    
+    # Find the last closing brace
+    end_index = text.rfind('}')
+    if end_index == -1:
+        return {"text_summary":"No JSON dictionary found - please ensure your response is a valid JSON dictionary."}
+    
+    # Extract the potential dictionary
+    potential_dict = text[start_index:end_index+1]
+    
+    return potential_dict
+
+###############################################################################
 # Actual LLM call to parse response
 ###############################################################################
 def call_llm_and_parse(client, prompt):
@@ -187,10 +252,11 @@ def call_llm_and_parse(client, prompt):
             model=MODEL_NAME,
             system=SYSTEM_PROMPT,
             messages=messages,
-            max_tokens=1000
+            max_tokens=5000
         )
         response_content = completion.content[0].text
         response_content = re.sub(r'^```json\s*|\s*```$', '', response_content, flags=re.MULTILINE)
+        response_content = extract_json_dict(response_content)
 
     else:
         messages = [
@@ -209,9 +275,12 @@ def call_llm_and_parse(client, prompt):
     try:
         parsed_response = json.loads(response_content)
     except json.JSONDecodeError as e:
-        print(f"Error parsing JSON response: {e}")
-        print(f"Raw response: {response_content}")
-    
+        if "Invalid \escape" in e:
+            parsed_response = {"text_summary":"Invalid escape sequence found in JSON response. Please correct this."}
+        else:
+            print(f"Error parsing JSON response: {e}")
+            print(f"Raw response: {response_content}")
+        
     # Convert to LLMResponse
     llm_response = LLMResponse(
         text_summary=parsed_response.get("text_summary", ""),
