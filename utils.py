@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 from pydantic import BaseModel
 import json
 import openai
+import anthropic
+import re
 import base64
 
 
@@ -173,23 +175,42 @@ def collect_matplotlib_figures():
 ###############################################################################
 def call_llm_and_parse(client, prompt):
     """
-    Calls the new OpenAI client to parse the response into LLMResponse
+    Calls the LLM client to parse the response into LLMResponse
     using the JSON schema automatically.
     """
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": prompt}
-    ]
-    completion = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=messages,
-        response_format={"type": "json_object"},
-        seed=42
-    )
+
+    if MODEL_NAME.startswith('claude'):
+        messages = [
+            {"role": "user", "content": prompt}
+        ]
+        completion = client.messages.create(
+            model=MODEL_NAME,
+            system=SYSTEM_PROMPT,
+            messages=messages,
+            max_tokens=1000
+        )
+        response_content = completion.content[0].text
+        response_content = re.sub(r'^```json\s*|\s*```$', '', response_content, flags=re.MULTILINE)
+
+    else:
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=messages,
+            response_format={"type": "json_object"},
+            seed=42
+        )
+        # Parse the JSON response content manually
+        response_content = completion.choices[0].message.content
     
-    # Parse the JSON response content manually
-    response_content = completion.choices[0].message.content
-    parsed_response = json.loads(response_content)
+    try:
+        parsed_response = json.loads(response_content)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON response: {e}")
+        print(f"Raw response: {response_content}")
     
     # Convert to LLMResponse
     llm_response = LLMResponse(
@@ -211,9 +232,8 @@ def get_client(model_name):
     if model_name=="4o" or model_name=="o1":
         return get_openai_client()
     elif model_name=="claude":
-        client = openai.OpenAI(
-            api_key=os.environ.get('API_KEY'),
-            base_url="https://api.anthropic.com/v1/"
+        client = anthropic.Anthropic(
+            api_key=os.environ.get('API_KEY')
         )
         return client
     else:
