@@ -27,6 +27,7 @@ SYSTEM_PROMPT = (
     "and your next proposed analysis. Your 'python_code' should be a single Python "
     "analysis snippet that the user can run. It is crucial that your code outputs something using print statements or matplotlib figures as this is what"
     "you will receive as your next prompt. The Python snippet must also include any required import statements."
+    "When you import a library, use the syntax 'import [LIBRARY] as [ALIAS]' rather than 'from [LIBRARY] import *'. This avoids namespace conflicts and keeps the code readable."
     "Ensure that your text and code do not contain any invalid escape sequences as this will cause an error."
 )
 
