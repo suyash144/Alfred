@@ -200,6 +200,18 @@
             display: none;
         }
         
+        #fileDetailsList {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .file-type-badge {
+            font-size: 0.8rem;
+            padding: 0.2rem 0.5rem;
+            margin-left: 5px;
+        }
+        
         .custom-prompt-container {
             margin-top: 15px;
             transition: all 0.3s ease;
@@ -230,12 +242,15 @@
             <!-- File Upload Section (Initially Hidden) -->
             <div id="fileUploadSection" class="file-upload-container" style="display: none;">
                 <div class="mb-3">
-                    <label for="dataFile" class="form-label">Upload Data File (.npy, .csv)</label>
-                    <input class="form-control" type="file" id="dataFile" accept=".npy,.csv">
-                    <div class="form-text">Supported formats: NumPy array (.npy) or CSV (.csv)</div>
+                    <label for="dataFile" class="form-label">Upload Data Files (.npy, .csv)</label>
+                    <input class="form-control" type="file" id="dataFile" accept=".npy,.csv" multiple>
+                    <div class="form-text">Supported formats: NumPy array (.npy) or CSV (.csv). You can select multiple files.</div>
                 </div>
                 <div id="uploadedFileInfo" class="uploaded-file-info">
-                    <p id="fileDetails">No file selected</p>
+                    <p>Selected Files:</p>
+                    <ul id="fileDetailsList" class="list-group">
+                        <li class="list-group-item text-muted">No files selected</li>
+                    </ul>
                 </div>
             </div>
             
@@ -326,7 +341,7 @@
             let currentSummary = '';
             let currentCode = '';
             let buttonState = 'execute';
-            let selectedFile = null;
+            let selectedFiles = [];
 
             // Toggle file upload section based on data source selection
             $('input[name="dataSource"]').change(function() {
@@ -346,16 +361,36 @@
                 }
             });
             
-            // Handle file selection
+            // Handle multiple file selection
             $('#dataFile').change(function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    selectedFile = file;
+                const files = e.target.files;
+                if (files && files.length > 0) {
+                    selectedFiles = Array.from(files);
                     $('#uploadedFileInfo').show();
-                    $('#fileDetails').html(`Selected file: <strong>${file.name}</strong> (${(file.size / 1024).toFixed(2)} KB)`);
+                    
+                    // Clear and rebuild the file list
+                    const $fileList = $('#fileDetailsList').empty();
+                    
+                    selectedFiles.forEach(function(file, index) {
+                        const fileSize = (file.size / 1024).toFixed(2);
+                        const fileType = file.name.split('.').pop().toLowerCase();
+                        const fileIcon = fileType === 'csv' ? '📊' : '📁';
+                        
+                        $fileList.append(`
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                ${fileIcon} <strong>${file.name}</strong>
+                                <span class="badge bg-primary rounded-pill">${fileSize} KB</span>
+                            </li>
+                        `);
+                    });
+                    
+                    // Add a summary message at the top
+                    $('#uploadedFileInfo p').text(`Selected ${files.length} file${files.length > 1 ? 's' : ''}:`);
+                    
                 } else {
-                    selectedFile = null;
-                    $('#uploadedFileInfo').hide();
+                    selectedFiles = [];
+                    $('#fileDetailsList').html('<li class="list-group-item text-muted">No files selected</li>');
+                    $('#uploadedFileInfo p').text('Selected Files:');
                 }
             });
 
@@ -370,11 +405,16 @@
                 const dataSource = $('input[name="dataSource"]:checked').val();
                 formData.append('dataSource', dataSource);
                 
-                // Add custom file if selected
-                if (dataSource === 'custom' && selectedFile) {
-                    formData.append('dataFile', selectedFile);
-                } else if (dataSource === 'custom' && !selectedFile) {
-                    alert('Please select a file to upload');
+                // Add custom files if selected
+                if (dataSource === 'custom' && selectedFiles.length > 0) {
+                    // Append each file with a unique key (dataFile_0, dataFile_1, etc.)
+                    selectedFiles.forEach((file, index) => {
+                        formData.append(`dataFile_${index}`, file);
+                    });
+                    // Also add the file count for server-side processing
+                    formData.append('fileCount', selectedFiles.length);
+                } else if (dataSource === 'custom' && selectedFiles.length === 0) {
+                    alert('Please select at least one file to upload');
                     $('.loading').hide();
                     return;
                 }
