@@ -1,10 +1,25 @@
 from flask import Flask, render_template, request, jsonify, send_file
+import os
+import numpy as np
+import pandas as pd
+import tempfile
+from werkzeug.utils import secure_filename
 from utils import *
 from data_loader import *
 ###############################################################################
 # Flask routes
 ###############################################################################
 app = Flask(__name__)
+
+# Configure upload settings
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'csv', 'npy'}
+
+# Ensure upload directory exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/')
 def index():
@@ -41,10 +56,150 @@ def index():
 def init_data():
     global conversation_history
     conversation_history = []
-    result = initialize_data()
+    
     if not os.getenv('API_KEY'):
-        raise ValueError ("API_KEY not found in environment variables. Please set this in order to use this tool.")
-    return jsonify({"status": "success", "message": result})
+        raise ValueError("API_KEY not found in environment variables. Please set this in order to use this tool.")
+    
+    # Check which data source is being used
+    data_source = request.form.get('dataSource', 'auto')
+    
+    if data_source == 'auto':
+        # Use the default auto-generated data
+        result = initialize_data()
+        return jsonify({"status": "success", "message": result})
+    
+    elif data_source == 'custom':
+        # Handle custom data upload
+        file_count = int(request.form.get('fileCount', 0))
+        
+        if file_count == 0:
+            return jsonify({"status": "error", "message": "No files were uploaded"})
+        
+        uploaded_files = []
+        file_info = []
+        
+        # Process each uploaded file
+        for i in range(file_count):
+            file_key = f'dataFile_{i}'
+            if file_key not in request.files:
+                continue
+            
+            file = request.files[file_key]
+            if file and file.filename and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                
+                # Create a temporary file path
+                file_path = os.path.join(UPLOAD_FOLDER, filename)
+                file.save(file_path)
+                
+                uploaded_files.append(file_path)
+                file_info.append({
+                    'name': filename,
+                    'path': file_path,
+                    'type': filename.rsplit('.', 1)[1].lower()
+                })
+        
+        if not uploaded_files:
+            return jsonify({
+                "status": "error", 
+                "message": "No valid files were uploaded. Please upload .csv or .npy files."
+            })
+        
+        # Process the uploaded files
+        result = process_uploaded_files(file_info)
+        
+        # Check if a custom prompt was provided
+        custom_prompt = request.form.get('customPrompt', '')
+        if custom_prompt:
+            # Store the custom prompt in the analysis namespace for later use
+            analysis_namespace['custom_prompt'] = custom_prompt
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"Successfully processed {len(uploaded_files)} custom data file(s)"
+        })
+    
+    else:
+        return jsonify({"status": "error", "message": "Invalid data source specified"})
+
+def process_uploaded_files(file_info):
+    """
+    Process uploaded files and store them in the analysis_namespace
+    
+    Args:
+        file_info: List of dictionaries containing file metadata
+        
+    Returns:
+        str: Status message
+    """
+    # Reset any existing data in the namespace
+    if 'x' in analysis_namespace:
+        del analysis_namespace['x']
+    
+    # Process each file based on its type
+    data_frames = []
+    numpy_arrays = []
+    
+    for file in file_info:
+        file_path = file['path']
+        file_type = file['type']
+        
+        try:
+            if file_type == 'csv':
+                # Load CSV file into a pandas DataFrame
+                df = pd.read_csv(file_path)
+                data_frames.append(df)
+                
+                # Store the individual DataFrame in namespace with its filename as key
+                base_name = os.path.basename(file_path).rsplit('.', 1)[0]
+                analysis_namespace[f'df_{base_name}'] = df
+                
+            elif file_type == 'npy':
+                # Load NumPy array
+                arr = np.load(file_path)
+                numpy_arrays.append(arr)
+                
+                # Store the individual array in namespace with its filename as key
+                base_name = os.path.basename(file_path).rsplit('.', 1)[0]
+                analysis_namespace[f'arr_{base_name}'] = arr
+        except Exception as e:
+            print(f"Error processing file {file_path}: {str(e)}")
+            continue
+    
+    # If we have data frames, combine them or use the first one
+    if data_frames:
+        if len(data_frames) == 1:
+            # If only one DataFrame, use it directly
+            df = data_frames[0]
+        else:
+            # If multiple DataFrames, try to combine them intelligently
+            # This is a simplified approach - in practice, you might need more sophisticated merging
+            df = pd.concat(data_frames, ignore_index=True)
+        
+        # Convert DataFrame to numpy array for compatibility with existing code
+        analysis_namespace['x'] = df.select_dtypes(include=[np.number]).to_numpy()
+        analysis_namespace['df'] = df  # Also store the full DataFrame for reference
+    
+    # If we have NumPy arrays, combine them or use the first one
+    elif numpy_arrays:
+        if len(numpy_arrays) == 1:
+            # If only one array, use it directly
+            analysis_namespace['x'] = numpy_arrays[0]
+        else:
+            # If multiple arrays, try to combine them
+            # Attempt to concatenate along first axis (assuming they have compatible shapes)
+            try:
+                analysis_namespace['x'] = np.concatenate(numpy_arrays, axis=0)
+            except:
+                # If concatenation fails, just use the first array
+                analysis_namespace['x'] = numpy_arrays[0]
+    
+    # Log the shape of the data
+    if 'x' in analysis_namespace:
+        x_shape = analysis_namespace['x'].shape
+        return f"Data loaded successfully with shape {x_shape}"
+    else:
+        return "Warning: Could not process any of the uploaded files into usable data"
 
 @app.route('/get_analysis', methods=['GET'])
 def get_analysis():
@@ -62,7 +217,13 @@ def get_analysis():
     else:
         client = get_openai_client()
         print("Using default model: GPT-4o")
-    prompt = build_llm_prompt(conversation_history)
+    
+    # Check if custom prompt exists and use it instead of the default prompt
+    if 'custom_prompt' in analysis_namespace:
+        custom_system_prompt = analysis_namespace['custom_prompt']
+        prompt = build_llm_prompt(conversation_history, custom_system_prompt)
+    else:
+        prompt = build_llm_prompt(conversation_history)
     
     try:
         llm_response = call_llm_and_parse(client, prompt)
@@ -232,7 +393,13 @@ def send_feedback():
         client = get_client(os.environ.get('MODEL'))
     else:
         client = get_openai_client()
-    prompt = build_llm_prompt(conversation_history)
+    
+    # Check if custom prompt exists and use it
+    if 'custom_prompt' in analysis_namespace:
+        custom_system_prompt = analysis_namespace['custom_prompt']
+        prompt = build_llm_prompt(conversation_history, custom_system_prompt)
+    else:
+        prompt = build_llm_prompt(conversation_history)
     
     try:
         llm_response = call_llm_and_parse(client, prompt)

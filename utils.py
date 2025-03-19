@@ -66,11 +66,18 @@ def extract_base64_from_data_url(data_url):
 ###############################################################################
 # Build the prompt for the LLM
 ###############################################################################
-def build_llm_prompt(conversation_history):
+def build_llm_prompt(conversation_history, custom_system_prompt=None):
     """
     Build a prompt for the LLM, incorporating the current conversation history.
     For text entries, we maintain the existing format.
     For figure entries, we now handle them specially to be passed as images.
+    
+    Args:
+        conversation_history: List of conversation entries
+        custom_system_prompt: Optional custom system prompt to replace the default
+        
+    Returns:
+        List of content parts for the LLM
     """
     # We'll store content parts for the final user message
     content_parts = []
@@ -239,11 +246,21 @@ def extract_json_dict(text):
 ###############################################################################
 # Actual LLM call to parse response
 ###############################################################################
-def call_llm_and_parse(client, prompt):
+def call_llm_and_parse(client, prompt, custom_system_prompt=None):
     """
     Calls the LLM client to parse the response into LLMResponse
     using the JSON schema automatically.
+    
+    Args:
+        client: LLM client (OpenAI or Anthropic)
+        prompt: List of content parts for the prompt
+        custom_system_prompt: Optional custom system prompt to replace the default
+    
+    Returns:
+        LLMResponse: Parsed response from the LLM
     """
+    # Use custom system prompt if provided, otherwise use default
+    system_prompt = SYSTEM_PROMPT+custom_system_prompt if custom_system_prompt else SYSTEM_PROMPT
 
     if MODEL_NAME.startswith('claude'):
         messages = [
@@ -251,7 +268,7 @@ def call_llm_and_parse(client, prompt):
         ]
         completion = client.messages.create(
             model=MODEL_NAME,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             messages=messages,
             max_tokens=5000
         )
@@ -261,7 +278,7 @@ def call_llm_and_parse(client, prompt):
 
     else:
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ]
         completion = client.chat.completions.create(
