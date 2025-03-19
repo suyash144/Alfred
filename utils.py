@@ -8,7 +8,6 @@ import re
 import base64
 
 
-# MODEL_NAME = "gpt-4o-2024-11-20"
 if os.environ.get('MODEL')=="4o":
     MODEL_NAME = "gpt-4o-2024-11-20"
 elif os.environ.get('MODEL')=="o1":
@@ -18,9 +17,21 @@ elif os.environ.get('MODEL')=="claude":
 else:
     MODEL_NAME = "gpt-4o-2024-11-20"
 
+
+###############################################################################
+# Global analysis namespace for executed code (retains state across iterations)
+###############################################################################
+analysis_namespace = {}
+
+###############################################################################
+# Global conversation history
+###############################################################################
+conversation_history = []
+
 SYSTEM_PROMPT = (
-    "You are a helpful assistant designed to perform iterative exploratory data "
-    "analysis on a 2D numpy array, stored in the variable 'x'. On each step, you must output valid JSON that "
+    "You are a helpful assistant designed to perform iterative exploratory data analysis."
+    "The data for analysis is stored in some variables, the names of which will be provided below.."
+    "On each step, you must output valid JSON that "
     "follows the LLMResponse schema (two fields: 'text_summary' and 'python_code'). "
     "Do not output extra keys or any text outside the JSON. Your 'text_summary' "
     "should describe your current understanding of the data, your working hypotheses, "
@@ -36,16 +47,6 @@ NOW_CONTINUE_TEXT = (
     "Now continue with a new step: Summarize what is known so far about the data, "
     "propose 5 or so working hypotheses, and suggest code for a single analysis step."
 )
-
-###############################################################################
-# Global analysis namespace for executed code (retains state across iterations)
-###############################################################################
-analysis_namespace = {}
-
-###############################################################################
-# Global conversation history
-###############################################################################
-conversation_history = []
 
 ###############################################################################
 # Pydantic model for the LLM's structured output

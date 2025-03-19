@@ -123,83 +123,63 @@ def init_data():
         return jsonify({"status": "error", "message": "Invalid data source specified"})
 
 def process_uploaded_files(file_info):
-    """
-    Process uploaded files and store them in the analysis_namespace
+    """Process uploaded files and store them in the analysis_namespace"""
+    global conversation_history
+    global SYSTEM_PROMPT
     
-    Args:
-        file_info: List of dictionaries containing file metadata
-        
-    Returns:
-        str: Status message
-    """
-    # Reset any existing data in the namespace
+    # Clear any existing 'x' data to avoid confusion
     if 'x' in analysis_namespace:
         del analysis_namespace['x']
     
-    # Process each file based on its type
-    data_frames = []
-    numpy_arrays = []
+    processed_files = []
     
     for file in file_info:
         file_path = file['path']
         file_type = file['type']
+        base_name = os.path.basename(file_path).rsplit('.', 1)[0]
         
         try:
             if file_type == 'csv':
                 # Load CSV file into a pandas DataFrame
                 df = pd.read_csv(file_path)
-                data_frames.append(df)
-                
-                # Store the individual DataFrame in namespace with its filename as key
-                base_name = os.path.basename(file_path).rsplit('.', 1)[0]
-                analysis_namespace[f'df_{base_name}'] = df
+                var_name = f'df_{base_name}'
+                analysis_namespace[var_name] = df
+                processed_files.append((var_name, f"DataFrame with shape {df.shape}"))
                 
             elif file_type == 'npy':
                 # Load NumPy array
                 arr = np.load(file_path)
-                numpy_arrays.append(arr)
+                var_name = f'arr_{base_name}'
+                analysis_namespace[var_name] = arr
+                processed_files.append((var_name, f"NumPy array with shape {arr.shape}"))
                 
-                # Store the individual array in namespace with its filename as key
-                base_name = os.path.basename(file_path).rsplit('.', 1)[0]
-                analysis_namespace[f'arr_{base_name}'] = arr
         except Exception as e:
             print(f"Error processing file {file_path}: {str(e)}")
             continue
     
-    # If we have data frames, combine them or use the first one
-    if data_frames:
-        if len(data_frames) == 1:
-            # If only one DataFrame, use it directly
-            df = data_frames[0]
-        else:
-            # If multiple DataFrames, try to combine them intelligently
-            # This is a simplified approach - in practice, you might need more sophisticated merging
-            df = pd.concat(data_frames, ignore_index=True)
-        
-        # Convert DataFrame to numpy array for compatibility with existing code
-        analysis_namespace['x'] = df.select_dtypes(include=[np.number]).to_numpy()
-        analysis_namespace['df'] = df  # Also store the full DataFrame for reference
+    # If only one file was processed, also set it as 'x' for backwards compatibility
+    if len(processed_files) == 1:
+        var_name, _ = processed_files[0]
+        analysis_namespace['x'] = analysis_namespace[var_name]
+        processed_files.append(('x', f"Reference to {var_name}"))
     
-    # If we have NumPy arrays, combine them or use the first one
-    elif numpy_arrays:
-        if len(numpy_arrays) == 1:
-            # If only one array, use it directly
-            analysis_namespace['x'] = numpy_arrays[0]
-        else:
-            # If multiple arrays, try to combine them
-            # Attempt to concatenate along first axis (assuming they have compatible shapes)
-            try:
-                analysis_namespace['x'] = np.concatenate(numpy_arrays, axis=0)
-            except:
-                # If concatenation fails, just use the first array
-                analysis_namespace['x'] = numpy_arrays[0]
+    # Create a data inventory message for the conversation history
+    data_inventory = "Available data variables:\n"
+    for var_name, description in processed_files:
+        data_inventory += f"- {var_name}: {description}\n"
     
-    # Log the shape of the data
-    if 'x' in analysis_namespace:
-        x_shape = analysis_namespace['x'].shape
-        return f"Data loaded successfully with shape {x_shape}"
-    else:
-        return "Warning: Could not process any of the uploaded files into usable data"
+    end_string = "You can access these variables as follows: " \
+    "analysis_namespace[var_name] = [DATA]"
+    data_inventory += end_string
+    
+    # Add this inventory to the conversation history
+    # conversation_history.append({
+    #     "role": "assistant",
+    #     "content": data_inventory
+    # })
+    SYSTEM_PROMPT += data_inventory
+    
+    return f"Successfully loaded {len(file_info)} file(s). Data inventory added to conversation."
 
 @app.route('/get_analysis', methods=['GET'])
 def get_analysis():
