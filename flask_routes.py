@@ -200,12 +200,7 @@ def get_analysis():
         client = get_openai_client()
         print("Using default model: GPT-4o")
     
-    # Check if custom prompt exists and use it instead of the default prompt
-    if 'custom_prompt' in analysis_namespace:
-        custom_system_prompt = analysis_namespace['custom_prompt']
-        prompt = build_llm_prompt(conversation_history, custom_system_prompt)
-    else:
-        prompt = build_llm_prompt(conversation_history)
+    prompt = build_llm_prompt(conversation_history)
     
     try:
         llm_response = call_llm_and_parse(client, prompt)
@@ -376,12 +371,7 @@ def send_feedback():
     else:
         client = get_openai_client()
     
-    # Check if custom prompt exists and use it
-    if 'custom_prompt' in analysis_namespace:
-        custom_system_prompt = analysis_namespace['custom_prompt']
-        prompt = build_llm_prompt(conversation_history, custom_system_prompt)
-    else:
-        prompt = build_llm_prompt(conversation_history)
+    prompt = build_llm_prompt(conversation_history)
     
     try:
         llm_response = call_llm_and_parse(client, prompt)

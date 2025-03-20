@@ -68,7 +68,7 @@ def extract_base64_from_data_url(data_url):
 ###############################################################################
 # Build the prompt for the LLM
 ###############################################################################
-def build_llm_prompt(conversation_history, custom_system_prompt=None):
+def build_llm_prompt(conversation_history):
     """
     Build a prompt for the LLM, incorporating the current conversation history.
     For text entries, we maintain the existing format.
@@ -245,6 +245,134 @@ def extract_json_dict(text):
     
     return potential_dict
 
+# Fix the invalid escape sequences in JSON strings
+def fix_json_escapes(json_str):
+    """
+    Finds and removes invalid escape characters and control characters in JSON strings.
+    
+    Args:
+        json_str (str): JSON string that may contain invalid escape sequences
+                        or unescaped control characters
+        
+    Returns:
+        str: Fixed JSON string with invalid sequences removed
+    """
+    if not json_str:
+        return json_str
+        
+    # JSON only allows these escape sequences
+    valid_json_escapes = {
+        '"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'
+    }
+    
+    result = []
+    i = 0
+    in_string = False
+    
+    while i < len(json_str):
+        char = json_str[i]
+        
+        # Track when we're inside a JSON string (which must be double-quoted)
+        if char == '"' and (i == 0 or json_str[i-1] != '\\'):
+            in_string = not in_string
+        
+        # Handle control characters (ASCII 0-31)
+        if in_string and ord(char) < 32:
+            # Control character in string - replace with appropriate escape or remove
+            if char == '\b':
+                result.append('\\b')
+            elif char == '\f':
+                result.append('\\f')
+            elif char == '\n':
+                result.append('\\n')
+            elif char == '\r':
+                result.append('\\r')
+            elif char == '\t':
+                result.append('\\t')
+            else:
+                # Other control chars should be escaped as \uXXXX
+                hex_value = format(ord(char), '04x')
+                result.append(f'\\u{hex_value}')
+        # Handle invalid escapes
+        elif in_string and char == '\\' and i + 1 < len(json_str):
+            next_char = json_str[i+1]
+            
+            # Check if it's a valid JSON escape
+            if next_char in valid_json_escapes:
+                # Special handling for unicode escapes \uXXXX
+                if next_char == 'u':
+                    if i + 5 < len(json_str) and all(c.lower() in '0123456789abcdef' for c in json_str[i+2:i+6]):
+                        # Valid unicode escape, keep it
+                        result.append(char)
+                    else:
+                        # Invalid unicode escape, remove backslash
+                        pass
+                else:
+                    # Valid standard escape, keep it
+                    result.append(char)
+            else:
+                # Invalid escape, omit the backslash
+                pass
+        else:
+            # Regular character or backslash at the end of string, keep it
+            result.append(char)
+        
+        i += 1
+    
+    return ''.join(result)
+
+# Add a function to safely parse JSON
+def safe_json_loads(json_str):
+    """
+    Safely parses JSON by first fixing invalid escape sequences and control characters.
+    
+    Args:
+        json_str (str): JSON string that may contain invalid escape sequences
+                        or unescaped control characters
+        
+    Returns:
+        dict/list: Parsed JSON object
+        
+    Raises:
+        ValueError: If JSON cannot be parsed even after fixing problematic sequences
+    """
+    import json
+    
+    # First try parsing as-is
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError as e:
+        error_message = str(e)
+        
+        # Check for common JSON parsing errors we can fix
+        needs_fixing = any([
+            "Invalid \\escape" in error_message,
+            "Invalid escape" in error_message,
+            "Invalid control character" in error_message,
+            "control character" in error_message,
+            "character U+" in error_message and "is not allowed" in error_message
+        ])
+        
+        if needs_fixing:
+            # Fix invalid escapes and control characters, then try again
+            fixed_json = fix_json_escapes(json_str)
+            try:
+                return json.loads(fixed_json)
+            except json.JSONDecodeError as e2:
+                # If still failing, try a more aggressive approach - strip all control chars
+                try:
+                    import re
+                    # Strip all control characters outside of strings
+                    aggressive_fix = re.sub(r'[\x00-\x1F]', '', fixed_json)
+                    return json.loads(aggressive_fix)
+                except json.JSONDecodeError as e3:
+                    error_pos = e3.pos
+                    context = aggressive_fix[max(0, error_pos-20):min(len(aggressive_fix), error_pos+20)]
+                    raise ValueError(f"Could not parse JSON even after fixes: {str(e3)}\nError near: {context}")
+        else:
+            # Some other JSON parsing error
+            raise ValueError(f"JSON parsing error: {error_message}")
+
 ###############################################################################
 # Actual LLM call to parse response
 ###############################################################################
@@ -293,11 +421,12 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
         response_content = completion.choices[0].message.content
     
     try:
-        parsed_response = json.loads(response_content)
+        parsed_response = safe_json_loads(response_content)
     except json.JSONDecodeError as e:
-        if "Invalid \escape" in e:
+        if "Invalid \escape" in str(e):
             parsed_response = {"text_summary":"Invalid escape sequence found in JSON response. Please correct this."}
         else:
+            parsed_response = {"text_summary":"JSONDecodeError. Please correct this."}
             print(f"Error parsing JSON response: {e}")
             print(f"Raw response: {response_content}")
         
