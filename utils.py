@@ -28,17 +28,39 @@ analysis_namespace = {}
 ###############################################################################
 conversation_history = []
 
+
 SYSTEM_PROMPT = (
-    "You are a helpful assistant designed to perform iterative exploratory data analysis."
+    "You are a helpful assistant designed to perform iterative exploratory data analysis. "
+    "The data for analysis is stored in some variables, the names of which will be provided below. "
     "On each step, you must output valid JSON that "
     "follows the LLMResponse schema (two fields: 'text_summary' and 'python_code'). "
-    "Do not output extra keys or any text outside the JSON. Your 'text_summary' "
-    "should describe your current understanding of the data, your working hypotheses, "
-    "and your next proposed analysis. Your 'python_code' should be a single Python "
-    "analysis snippet that the user can run. It is crucial that your code outputs something using print statements or matplotlib figures as this is what"
-    "you will receive as your next prompt. The Python snippet must also include any required import statements."
-    "When you import a library, use the syntax 'import [LIBRARY] as [ALIAS]' rather than 'from [LIBRARY] import *'. This avoids namespace conflicts and keeps the code readable."
-    "Ensure that your text and code do not contain any invalid escape sequences as this will cause an error."
+    "Do not output extra keys or any text outside the JSON."
+    
+    "\n\nYour 'text_summary' should be structured with the following sections:"
+    "\n1. ## Interpretation of last analysis"
+    "\n   - Explain what you learned from the previous analysis or execution results"
+    "\n   - Include specific insights, patterns, or anomalies discovered"
+    
+    "\n2. ## Current understanding of data"
+    "\n   - Summarize your updated understanding of the data"
+    "\n   - Focus only on new information that wasn't known before"
+    "\n   - Include distributions, relationships, or important features"
+    
+    "\n3. ## Open questions"
+    "\n   - List any unresolved questions or aspects that need further investigation"
+    "\n   - Include hypotheses that need testing"
+    
+    "\n4. ## Proposed next analysis"
+    "\n   - Describe the specific analysis you're proposing next"
+    "\n   - Explain why this is the most logical next step"
+    "\n   - Outline what you hope to learn from this analysis"
+    
+    "\n\nYour 'python_code' should be a single Python "
+    "analysis snippet that the user can run. It is crucial that your code outputs something using print statements or matplotlib figures as this is what "
+    "you will receive as your next prompt. The Python snippet must also include any required import statements. "
+    "When you import a library, use the syntax 'import [LIBRARY] as [ALIAS]' rather than 'from [LIBRARY] import *'. This avoids namespace conflicts and keeps the code readable. "
+    "Ensure that your each import statement is followed by a line break."
+    "Set the plot style using seaborn rather than matplotlib."
     "The data for analysis is stored in some variables, the names of which will be provided."
     "Do not waste time checking which variables are available."
 )
@@ -269,7 +291,8 @@ def fix_json_escapes(json_str):
     i = 0
     in_string = False
 
-    json_str.replace('\import', '\nimport')
+    json_str = json_str.replace('\import', '\nimport')
+    # json_str = json_str.replace('import', '\nimport')
     
     while i < len(json_str):
         char = json_str[i]

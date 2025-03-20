@@ -256,6 +256,67 @@
         .modal.show .modal-dialog {
             transform: none;
         }
+
+        #summary-content h2 {
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            margin-top: 20px;
+            font-size: 1.4rem;
+        }
+
+        #summary-content ul {
+            padding-left: 20px;
+        }
+
+        #summary-content li {
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        #summary-content li:before {
+            content: "•";
+            color: #3498db;
+            font-weight: bold;
+            display: inline-block;
+            width: 1em;
+            margin-left: -1em;
+        }
+
+        #summary-content p {
+            line-height: 1.6;
+        }
+
+        #summary-content code {
+            background-color: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 4px;
+            color: #e83e8c;
+        }
+
+        #summary-content .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+
+        /* Section-specific styling */
+        #summary-content h2:nth-of-type(1) {
+            color: #000000;
+        }
+
+        #summary-content h2:nth-of-type(2) {
+            color: #000000;
+        }
+
+        #summary-content h2:nth-of-type(3) {
+            color: #000000;
+        }
+
+        #summary-content h2:nth-of-type(4) {
+            color: #000000;
+        }
     </style>
 </head>
 
@@ -1031,6 +1092,104 @@
             $(document).ajaxComplete(function (event, jqxhr, settings) {
                 console.log("Ajax complete:", settings.type, settings.url, "Status:", jqxhr.status);
             });
+        });
+
+        // Image expansion modal
+        $(document).ready(function() {
+
+            // Also call after refreshing history
+            const originalRefreshHistory = refreshConversationHistory;
+            refreshConversationHistory = function() {
+                originalRefreshHistory();
+                setTimeout(makeImagesExpandable, 500);
+            };
+            
+            // Enhanced markdown to HTML function
+            window.markdownToHtml = function(markdown) {
+                if (!markdown) return '';
+                
+                // Extract sections to apply our structured format
+                const sections = extractSections(markdown);
+                
+                // Convert headers
+                let html = markdown
+                    .replace(/^### (.*$)/gm, '<h3 class="mt-4 mb-3">$1</h3>')
+                    .replace(/^## (.*$)/gm, '<h2 class="mt-4 mb-3">$1</h2>')
+                    .replace(/^# (.*$)/gm, '<h1 class="mt-4 mb-3">$1</h1>');
+
+                // Convert bold and italic
+                html = html
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+                // Convert lists with better styling
+                html = html
+                    .replace(/^\s*\d+\.\s+(.*$)/gm, '<li class="mb-1">$1</li>')
+                    .replace(/^\s*[\-\*]\s+(.*$)/gm, '<li class="mb-1">$1</li>');
+
+                // Wrap lists with proper Bootstrap classes
+                html = html
+                    .replace(/<\/li>\n<li>/g, '</li><li>')
+                    .replace(/(<li class="mb-1">.*?<\/li>)/gs, (match) => {
+                        return '<ul class="list-group list-group-flush mb-3">' + match + '</ul>';
+                    });
+
+                // Convert code blocks
+                html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-light p-3 rounded"><code>$1</code></pre>');
+                
+                // Convert inline code
+                html = html.replace(/`([^`]+)`/g, '<code class="bg-light px-1 rounded">$1</code>');
+
+                // Convert paragraphs with better spacing
+                html = html
+                    .replace(/\n\s*\n/g, '</p><p class="mb-3">')
+                    .replace(/^(.+)$/gm, function (match) {
+                        if (match.startsWith('<')) return match;
+                        return `<p class="mb-3">${match}</p>`;
+                    });
+
+                return html;
+            };
+            
+            // Function to extract sections from markdown
+            function extractSections(markdown) {
+                const sections = {
+                    interpretation: '',
+                    understanding: '',
+                    questions: '',
+                    proposed: ''
+                };
+                
+                // Look for interpretation section
+                const interpretationRegex = /## *Interpretation(?:.*?)\n([\s\S]*?)(?=\n## |\n# |$)/i;
+                const interpretationMatch = markdown.match(interpretationRegex);
+                if (interpretationMatch) {
+                    sections.interpretation = interpretationMatch[1].trim();
+                }
+                
+                // Look for understanding section
+                const understandingRegex = /## *Current understanding(?:.*?)\n([\s\S]*?)(?=\n## |\n# |$)/i;
+                const understandingMatch = markdown.match(understandingRegex);
+                if (understandingMatch) {
+                    sections.understanding = understandingMatch[1].trim();
+                }
+                
+                // Look for questions section
+                const questionsRegex = /## *Open questions(?:.*?)\n([\s\S]*?)(?=\n## |\n# |$)/i;
+                const questionsMatch = markdown.match(questionsRegex);
+                if (questionsMatch) {
+                    sections.questions = questionsMatch[1].trim();
+                }
+                
+                // Look for proposed next analysis section
+                const proposedRegex = /## *Proposed next(?:.*?)\n([\s\S]*?)(?=\n## |\n# |$)/i;
+                const proposedMatch = markdown.match(proposedRegex);
+                if (proposedMatch) {
+                    sections.proposed = proposedMatch[1].trim();
+                }
+                
+                return sections;
+            }
         });
     </script>
 </body>
