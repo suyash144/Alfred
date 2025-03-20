@@ -275,7 +275,7 @@
         <div class="row mb-4">
             <div class="col">
                 <button id="initialize-btn" class="btn btn-primary">Initialise Dataset</button>
-                <button id="get-analysis-btn" class="btn btn-success">Refresh History</button>
+                <!-- <button id="get-analysis-btn" class="btn btn-success">Refresh History</button> -->
             </div>
         </div>
 
@@ -892,15 +892,6 @@
 
                 return html;
             }
-            
-            // Add diagnostic button to HTML
-            $(document).ready(function () {
-                $('#initialize-btn').after('<button id="refresh-history-btn" class="btn btn-secondary ms-2">Refresh History</button>');
-
-                $('#refresh-history-btn').click(function () {
-                    refreshConversationHistory();
-                });
-            });
 
             // Logging middleware for debugging
             $(document).ajaxSend(function (event, jqxhr, settings) {
