@@ -115,8 +115,11 @@ def init_data():
         # Check if a custom prompt was provided
         custom_prompt = request.form.get('customPrompt', '')
         if custom_prompt:
-            # Store the custom prompt in the analysis namespace for later use
-            analysis_namespace['custom_prompt'] = custom_prompt
+            # Add the custom prompt as the first user prompt.
+            conversation_history.append({
+                "role": "user",
+                "content": custom_prompt
+            })
         
         return jsonify({
             "status": "success", 
