@@ -65,7 +65,11 @@ def init_data():
     
     if data_source == 'auto':
         # Use the default auto-generated data
-        result = initialize_data()
+        result, data_inv = initialize_data()
+        conversation_history.append({
+            "role": "assistant",
+            "content": data_inv
+        })
         return jsonify({"status": "success", "message": result})
     
     elif data_source == 'custom':
@@ -125,7 +129,7 @@ def init_data():
 def process_uploaded_files(file_info):
     """Process uploaded files and store them in the analysis_namespace"""
     global conversation_history
-    global SYSTEM_PROMPT
+    global analysis_namespace
     
     # Clear any existing 'x' data to avoid confusion
     if 'x' in analysis_namespace:
@@ -167,17 +171,12 @@ def process_uploaded_files(file_info):
     data_inventory = "Available data variables:\n"
     for var_name, description in processed_files:
         data_inventory += f"- {var_name}: {description}\n"
-    
-    end_string = "You can access these variables as follows: " \
-    "analysis_namespace[var_name] = [DATA]"
-    data_inventory += end_string
-    
+        
     # Add this inventory to the conversation history
-    # conversation_history.append({
-    #     "role": "assistant",
-    #     "content": data_inventory
-    # })
-    SYSTEM_PROMPT += data_inventory
+    conversation_history.append({
+        "role": "assistant",
+        "content": data_inventory
+    })
     
     return f"Successfully loaded {len(file_info)} file(s). Data inventory added to conversation."
 

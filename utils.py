@@ -30,7 +30,6 @@ conversation_history = []
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant designed to perform iterative exploratory data analysis."
-    "The data for analysis is stored in some variables, the names of which will be provided below.."
     "On each step, you must output valid JSON that "
     "follows the LLMResponse schema (two fields: 'text_summary' and 'python_code'). "
     "Do not output extra keys or any text outside the JSON. Your 'text_summary' "
@@ -40,6 +39,8 @@ SYSTEM_PROMPT = (
     "you will receive as your next prompt. The Python snippet must also include any required import statements."
     "When you import a library, use the syntax 'import [LIBRARY] as [ALIAS]' rather than 'from [LIBRARY] import *'. This avoids namespace conflicts and keeps the code readable."
     "Ensure that your text and code do not contain any invalid escape sequences as this will cause an error."
+    "The data for analysis is stored in some variables, the names of which will be provided."
+    "Do not waste time checking which variables are available."
 )
 
 # This is the fixed part of the user prompt appended at the end of conversation history
