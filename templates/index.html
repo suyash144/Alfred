@@ -216,6 +216,46 @@
             margin-top: 15px;
             transition: all 0.3s ease;
         }
+
+        .expandable-image {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .expandable-image:hover {
+            transform: scale(1.03);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Styling for the modal */
+        #imageModal .modal-xl {
+            max-width: 90vw;
+        }
+
+        #imageModal .modal-body {
+            padding: 0;
+            background-color: #f8f9fa;
+            text-align: center;
+        }
+
+        #modalImage {
+            max-height: 85vh;
+            margin: 0 auto;
+            object-fit: contain;
+        }
+
+        /* Zoom cursor for expandable images */
+        .expandable-image {
+            cursor: zoom-in !important;
+        }
+
+        /* Animation for modal opening */
+        .modal.fade .modal-dialog {
+            transition: transform 0.3s ease-out;
+        }
+
+        .modal.show .modal-dialog {
+            transform: none;
+        }
     </style>
 </head>
 
@@ -490,6 +530,96 @@
                 });
             });
 
+                // Create the modal container for fullscreen images
+                $(document).ready(function() {
+                    // Add the modal HTML to the page
+                    $('body').append(`
+                        <div id="imageModal" class="modal fade" tabindex="-1" role="dialog" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered modal-xl">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Image Viewer</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body text-center">
+                                        <img id="modalImage" class="img-fluid" src="" alt="Expanded figure">
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `);
+
+                    // Function to make images clickable
+                    function makeImagesExpandable() {
+                        // Target all images in conversation history
+                        $('#conversation-history img').each(function() {
+                            if (!$(this).hasClass('expandable-image')) {
+                                $(this).addClass('expandable-image');
+                                $(this).css('cursor', 'pointer');
+                                $(this).attr('title', 'Click to expand');
+                            }
+                        });
+
+                        // Target all images in figures container
+                        $('#figures-container img').each(function() {
+                            if (!$(this).hasClass('expandable-image')) {
+                                $(this).addClass('expandable-image');
+                                $(this).css('cursor', 'pointer');
+                                $(this).attr('title', 'Click to expand');
+                            }
+                        });
+
+                        // Target all images in history figures
+                        $('.history-figure img').each(function() {
+                            if (!$(this).hasClass('expandable-image')) {
+                                $(this).addClass('expandable-image');
+                                $(this).css('cursor', 'pointer');
+                                $(this).attr('title', 'Click to expand');
+                            }
+                        });
+                    }
+
+                    // Event delegation for opening the modal
+                    $(document).on('click', '.expandable-image', function() {
+                        const imgSrc = $(this).attr('src');
+                        $('#modalImage').attr('src', imgSrc);
+                        const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+                        modal.show();
+                    });
+
+                    // Call the function initially
+                    makeImagesExpandable();
+
+                    // Set up an observer to make new images expandable as they're added
+                    const observer = new MutationObserver(function(mutations) {
+                        mutations.forEach(function(mutation) {
+                            if (mutation.addedNodes.length) {
+                                makeImagesExpandable();
+                            }
+                        });
+                    });
+
+                    // Start observing the conversation history and figures container
+                    observer.observe(document.getElementById('conversation-history'), { 
+                        childList: true, 
+                        subtree: true 
+                    });
+                    
+                    observer.observe(document.getElementById('figures-container'), { 
+                        childList: true, 
+                        subtree: true 
+                    });
+
+                    // Also make sure to call this after any dynamic content updates
+                    const originalRefreshHistory = refreshConversationHistory;
+                    refreshConversationHistory = function() {
+                        originalRefreshHistory();
+                        setTimeout(makeImagesExpandable, 500);
+                    };
+                });
             // Dynamic action button - changes function based on state
             $('#action-btn').click(function () {
                 if (buttonState === 'execute') {
