@@ -268,6 +268,8 @@ def fix_json_escapes(json_str):
     result = []
     i = 0
     in_string = False
+
+    json_str.replace('\import', '\nimport')
     
     while i < len(json_str):
         char = json_str[i]
