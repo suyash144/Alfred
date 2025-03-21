@@ -13,7 +13,7 @@ app = Flask(__name__)
 
 # Configure upload settings
 UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'csv', 'npy'}
+ALLOWED_EXTENSIONS = {'csv', 'npy', 'json'}
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -106,7 +106,7 @@ def init_data():
         if not uploaded_files:
             return jsonify({
                 "status": "error", 
-                "message": "No valid files were uploaded. Please upload .csv or .npy files."
+                "message": "No valid files were uploaded. Please upload .csv, .json or .npy files."
             })
         
         # Process the uploaded files
@@ -159,16 +159,20 @@ def process_uploaded_files(file_info):
                 var_name = f'arr_{base_name}'
                 analysis_namespace[var_name] = arr
                 processed_files.append((var_name, f"NumPy array with shape {arr.shape}"))
+
+            elif file_type == 'json':
+                print(file_path)
+                with open(file_path) as f:
+                    jsonfile = json.load(f)
+                var_name = f'json_{base_name}'
+                analysis_namespace[var_name] = jsonfile
+                processed_files.append((var_name, f"Json file"))
+            
+            print(analysis_namespace)
                 
         except Exception as e:
             print(f"Error processing file {file_path}: {str(e)}")
             continue
-    
-    # If only one file was processed, also set it as 'x' for backwards compatibility
-    if len(processed_files) == 1:
-        var_name, _ = processed_files[0]
-        analysis_namespace['x'] = analysis_namespace[var_name]
-        processed_files.append(('x', f"Reference to {var_name}"))
     
     # Create a data inventory message for the conversation history
     data_inventory = "Available data variables:\n"
