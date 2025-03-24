@@ -6,7 +6,17 @@ import openai
 import anthropic
 import re
 import base64
+import logging
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()  # Log to stderr
+    ]
+)
+logger = logging.getLogger('alfred')
 
 if os.environ.get('MODEL')=="4o":
     MODEL_NAME = "gpt-4o-2024-11-20"
@@ -16,7 +26,6 @@ elif os.environ.get('MODEL')=="claude":
     MODEL_NAME = "claude-3-7-sonnet-20250219"
 else:
     MODEL_NAME = "gpt-4o-2024-11-20"
-
 
 ###############################################################################
 # Global analysis namespace for executed code (retains state across iterations)
@@ -94,14 +103,7 @@ def build_llm_prompt(conversation_history):
     """
     Build a prompt for the LLM, incorporating the current conversation history.
     For text entries, we maintain the existing format.
-    For figure entries, we now handle them specially to be passed as images.
-    
-    Args:
-        conversation_history: List of conversation entries
-        custom_system_prompt: Optional custom system prompt to replace the default
-        
-    Returns:
-        List of content parts for the LLM
+    For figure entries, we handle them specially to be passed as images.
     """
     # We'll store content parts for the final user message
     content_parts = []
@@ -195,13 +197,19 @@ def run_and_capture_output(code):
     """
     Executes the given code string in the analysis_namespace context,
     capturing stdout and any matplotlib figures generated.
-    Returns (output_text, figures, error_flag).
-      - output_text is either the code's stdout or error message
-      - figures is the list of created matplotlib figures
-      - error_flag is True if an exception occurred
+    
+    Returns:
+        output_text (str): The captured stdout output (for user display)
+        figures (list): List of matplotlib figures created during execution
+        error_flag (bool): True if an exception occurred during execution
     """
+    # Save original stdout to restore later
     old_stdout = sys.stdout
+    
+    # Create a StringIO object to capture user output
     redirected_output = io.StringIO()
+    
+    # Redirect stdout to our StringIO object
     sys.stdout = redirected_output
 
     # Close any existing figures so we only capture the new ones
@@ -209,18 +217,36 @@ def run_and_capture_output(code):
 
     figures = []
     error_flag = False
+    
     try:
+        # Execute the code in the shared namespace
         exec(code, analysis_namespace)
+        
+        # Collect any figures that were generated
         figures = collect_matplotlib_figures()
+        
     except Exception as e:
         error_flag = True
-        print(f"Execution Error: {e}")
-
-    sys.stdout = old_stdout
+        
+        # Temporarily restore stdout to log the error to the terminal
+        sys.stdout = old_stdout
+        logger.error(f"Code execution error: {str(e)}")
+        
+        # Then redirect again to capture the error message for the user display
+        sys.stdout = redirected_output
+        print(f"Execution Error: {str(e)}")
+        
+    finally:
+        # Always restore the original stdout
+        sys.stdout = old_stdout
+    
+    # Get the captured output to show to the user
     output_text = redirected_output.getvalue()
 
+    # If no output was generated, provide a helpful message to the user
     if len(output_text) == 0 and len(figures) == 0:
         output_text = "Please make sure your code prints something to stdout or generates some figures. Otherwise you will not receive any information."
+        logger.warning("Code execution produced no output or figures")
 
     return output_text, figures, error_flag
 
@@ -235,6 +261,8 @@ def collect_matplotlib_figures():
     for i in plt.get_fignums():
         fig = plt.figure(i)
         figs.append(fig)
+    
+    logger.debug(f"Collected {len(figs)} matplotlib figures")
     return figs
 
 ###############################################################################
@@ -255,11 +283,13 @@ def extract_json_dict(text):
     # Find the first opening brace
     start_index = text.find('{')
     if start_index == -1:
+        logger.warning("No JSON dictionary found in LLM response")
         return {"text_summary":"No JSON dictionary found - please ensure your response is a valid JSON dictionary."}
     
     # Find the last closing brace
     end_index = text.rfind('}')
     if end_index == -1:
+        logger.warning("No JSON dictionary found in LLM response")
         return {"text_summary":"No JSON dictionary found - please ensure your response is a valid JSON dictionary."}
     
     # Extract the potential dictionary
@@ -292,7 +322,6 @@ def fix_json_escapes(json_str):
     in_string = False
 
     json_str = json_str.replace('\import', '\nimport')
-    # json_str = json_str.replace('import', '\nimport')
     
     while i < len(json_str):
         char = json_str[i]
@@ -368,6 +397,7 @@ def safe_json_loads(json_str):
         return json.loads(json_str)
     except json.JSONDecodeError as e:
         error_message = str(e)
+        logger.warning(f"Initial JSON parsing failed: {error_message}")
         
         # Check for common JSON parsing errors we can fix
         needs_fixing = any([
@@ -380,22 +410,27 @@ def safe_json_loads(json_str):
         
         if needs_fixing:
             # Fix invalid escapes and control characters, then try again
+            logger.info("Attempting to fix JSON escape sequences")
             fixed_json = fix_json_escapes(json_str)
             try:
                 return json.loads(fixed_json)
             except json.JSONDecodeError as e2:
+                logger.warning(f"JSON parsing still failed after fixing escapes: {str(e2)}")
                 # If still failing, try a more aggressive approach - strip all control chars
                 try:
                     import re
+                    logger.info("Attempting aggressive JSON fix - stripping control characters")
                     # Strip all control characters outside of strings
                     aggressive_fix = re.sub(r'[\x00-\x1F]', '', fixed_json)
                     return json.loads(aggressive_fix)
                 except json.JSONDecodeError as e3:
                     error_pos = e3.pos
                     context = aggressive_fix[max(0, error_pos-20):min(len(aggressive_fix), error_pos+20)]
+                    logger.error(f"All JSON parsing attempts failed: {str(e3)}")
                     raise ValueError(f"Could not parse JSON even after fixes: {str(e3)}\nError near: {context}")
         else:
             # Some other JSON parsing error
+            logger.error(f"JSON parsing failed with error: {error_message}")
             raise ValueError(f"JSON parsing error: {error_message}")
 
 ###############################################################################
@@ -409,7 +444,7 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
     Args:
         client: LLM client (OpenAI or Anthropic)
         prompt: List of content parts for the prompt
-        custom_system_prompt: Optional custom system prompt to replace the default
+        custom_system_prompt: Optional custom system prompt to add to default
     
     Returns:
         LLMResponse: Parsed response from the LLM
@@ -417,6 +452,8 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
     # Use custom system prompt if provided, otherwise use default
     system_prompt = SYSTEM_PROMPT+custom_system_prompt if custom_system_prompt else SYSTEM_PROMPT
 
+    logger.info(f"Calling LLM with model: {MODEL_NAME}")
+    
     if MODEL_NAME.startswith('claude'):
         messages = [
             {"role": "user", "content": prompt}
@@ -447,13 +484,14 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
     
     try:
         parsed_response = safe_json_loads(response_content)
+        logger.info("Successfully parsed LLM response")
     except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse LLM response: {e}")
         if "Invalid \escape" in str(e):
             parsed_response = {"text_summary":"Invalid escape sequence found in JSON response. Please correct this."}
         else:
             parsed_response = {"text_summary":"JSONDecodeError. Please correct this."}
-            print(f"Error parsing JSON response: {e}")
-            print(f"Raw response: {response_content}")
+            logger.error(f"Raw response: {response_content}")
         
     # Convert to LLMResponse
     llm_response = LLMResponse(
@@ -467,25 +505,37 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
 # Functions to get LLM clients
 ###############################################################################
 def get_openai_client():
-    return openai.OpenAI(
-        api_key=os.environ.get('API_KEY'),
-    )
+    """Returns an initialized OpenAI client"""
+    api_key = os.environ.get('API_KEY')
+    if not api_key:
+        logger.error("API_KEY environment variable not set")
+        raise ValueError("API_KEY environment variable is required")
+        
+    return openai.OpenAI(api_key=api_key)
 
 def get_client(model_name):
+    """Returns the appropriate client based on the model name"""
+    logger.info(f"Initializing client for model: {model_name}")
+    
     if model_name=="4o" or model_name=="o1":
         return get_openai_client()
     elif model_name=="claude":
-        client = anthropic.Anthropic(
-            api_key=os.environ.get('API_KEY')
-        )
+        api_key = os.environ.get('API_KEY')
+        if not api_key:
+            logger.error("API_KEY environment variable not set")
+            raise ValueError("API_KEY environment variable is required")
+            
+        client = anthropic.Anthropic(api_key=api_key)
         return client
     else:
+        logger.error(f"Invalid model name: {model_name}")
         raise ValueError("Invalid model name - choose 4o, o1, or claude")
 
 ###############################################################################
 # Function to convert matplotlib figure to base64 for web display
 ###############################################################################
 def fig_to_base64(fig):
+    """Convert matplotlib figure to base64 string for web display"""
     buf = io.BytesIO()
     fig.savefig(buf, format='png')
     buf.seek(0)
