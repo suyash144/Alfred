@@ -3,7 +3,9 @@ import os
 import numpy as np
 import pandas as pd
 import json
-import tempfile
+import multiprocessing
+import time
+import threading
 from werkzeug.utils import secure_filename
 import logging
 from utils import *
@@ -20,6 +22,10 @@ app = Flask(__name__)
 # Configure upload settings
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'csv', 'npy', 'json'}
+
+# Global dictionary to track active execution processes
+active_executions = {}
+execution_results = {}
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -225,6 +231,7 @@ def get_analysis():
             elif model_name == "4o":
                 logger.info("Using model: GPT-4o (Note: Cheapest per token)")
         else:
+            model_name = "4o"
             client = get_openai_client()
             logger.info("Using default model: GPT-4o")
         
@@ -239,21 +246,77 @@ def get_analysis():
             "code": llm_response.python_code,
             "conversation_length": len(conversation_history)
         })
+    
     except Exception as e:
-        logger.error(f"Error getting analysis: {str(e)}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        })
+        # Separately handle errors stemming from API providers.
+        if model_name == "claude":                                          # Anthropic API Error codes 
+            if "Error code: 429" in str(e):
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "API rate limit exceeded. Please try again later."
+                }), 429
+            elif "Error code: 529" in str(e):
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Anthropic API is temporarily overloaded. Please try again later."
+                }), 529
+            else:
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": str(e)
+                })
+        else:                                                                # OpenAI API Error codes
+            if "429" in str(e):
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "API rate limit or token quota exceeded. Please try again later."
+                }), 429
+            elif "403" in str(e):
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "You are in an unsupported region to access the OpenAI API."
+                }), 403
+            elif "401" in str(e):
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "API authentication failed. Please check your API key."
+                }), 401
+            elif "500" in str(e) or "503" in str(e):
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "OpenAI servers are currently overloaded or experiencing issues. Please try again later."
+                }), 500
+            else:
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": str(e)
+                })
+
+
 
 @app.route('/execute_code', methods=['POST'])
 def execute_code():
-    """Execute Python code and capture outputs/figures"""
+    """Execute Python code in a separate process and capture outputs/figures"""
     global conversation_history
+    global active_executions
+    global execution_results
+    
     code = request.json.get('code', '')
     summary = request.json.get('summary', '')
+    execution_id = request.json.get('execution_id')
     
-    logger.info(f"Executing code with conversation history length: {len(conversation_history)}")
+    if not execution_id:
+        execution_id = str(time.time())  # Generate an ID if not provided
+    
+    logger.info(f"Starting code execution with ID: {execution_id}")
     
     # First, add the summary and proposed code to conversation history
     conversation_history.append({
@@ -266,69 +329,241 @@ def execute_code():
         "content": "Proposed code:\n" + code
     })
     
-    logger.debug(f"After adding summary and code: {len(conversation_history)}")
-    
-    # Now execute the code
-    output_text, figures, had_error = run_and_capture_output(code)
-    
     # Add execution record to history
     conversation_history.append({
         "role": "user",
         "content": "Execute code"
     })
     
-    if had_error:
-        logger.warning("Code execution resulted in error")
-        conversation_history.append({
-            "role": "assistant",
-            "content": "Error while running code:\n" + output_text
-        })
-        return jsonify({
-            "status": "error",
-            "output": output_text,
-            "figures": [],
-            "history_length": len(conversation_history)
-        })
-    else:
-        if output_text.strip():
+    # Initialize result storage
+    execution_results[execution_id] = {
+        'status': 'running',
+        'output': '',
+        'figures': [],
+        'error': False,
+        'complete': False
+    }
+    
+    # Create a pipe for communication
+    parent_conn, child_conn = multiprocessing.Pipe()
+    
+    # Create and start the process
+    process = multiprocessing.Process(
+        target=run_code_in_process,
+        args=(code, analysis_namespace, child_conn)
+    )
+    
+    # Store the process and connection for potential cancellation
+    active_executions[execution_id] = {
+        'process': process,
+        'connection': parent_conn,
+        'start_time': time.time()
+    }
+    
+    # Start the process
+    process.start()
+    
+    # Set up a background thread to handle long-running code execution
+    def process_execution_results():
+        try:
+            # Wait for results with a timeout
+            if parent_conn.poll(120.0):  # 120 second timeout
+                output_text, figures, _, had_error = parent_conn.recv()
+                
+                # Check if execution was terminated
+                if output_text == "TERMINATED":
+                    logger.info(f"Execution {execution_id} was terminated")
+                    execution_results[execution_id]['status'] = 'cancelled'
+                    execution_results[execution_id]['output'] = "Execution was cancelled by user."
+                    execution_results[execution_id]['complete'] = True
+                    return
+                
+                # Process figures if any
+                figure_data = []
+                for i, fig in enumerate(figures or []):
+                    img_str = fig_to_base64(fig)
+                    figure_data.append({
+                        "id": i,
+                        "data": img_str
+                    })
+                    
+                    # Add figure to conversation history
+                    title = fig._suptitle.get_text() if hasattr(fig, '_suptitle') and fig._suptitle else f"Figure {i+1}"
+                    logger.info(f"Generated figure: {title}")
+                    
+                    conversation_history.append({
+                        "role": "figure",
+                        "content": {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{img_str}",
+                            },
+                        }
+                    })
+                
+                # Store the results for retrieval
+                execution_results[execution_id]['status'] = 'completed'
+                execution_results[execution_id]['output'] = output_text
+                execution_results[execution_id]['figures'] = figure_data
+                execution_results[execution_id]['error'] = had_error
+                execution_results[execution_id]['complete'] = True
+                
+                # Add output to conversation history if it exists
+                if had_error:
+                    logger.warning(f"Execution {execution_id} resulted in error")
+                    conversation_history.append({
+                        "role": "assistant",
+                        "content": "Error while running code:\n" + output_text
+                    })
+                elif output_text.strip():
+                    conversation_history.append({
+                        "role": "assistant",
+                        "content": "Code Output:\n" + output_text
+                    })
+                
+            else:
+                # Timeout occurred
+                logger.warning(f"Execution {execution_id} timed out")
+                output_text = "Execution timed out after 120 seconds. Consider optimizing your code or using smaller datasets."
+                
+                execution_results[execution_id]['status'] = 'timeout'
+                execution_results[execution_id]['output'] = output_text
+                execution_results[execution_id]['error'] = True
+                execution_results[execution_id]['complete'] = True
+                
+                conversation_history.append({
+                    "role": "assistant",
+                    "content": "Execution timed out:\n" + output_text
+                })
+        except Exception as e:
+            logger.error(f"Error processing execution results: {str(e)}")
+            output_text = f"Error during execution: {str(e)}"
+            
+            execution_results[execution_id]['status'] = 'error'
+            execution_results[execution_id]['output'] = output_text
+            execution_results[execution_id]['error'] = True
+            execution_results[execution_id]['complete'] = True
+            
             conversation_history.append({
                 "role": "assistant",
-                "content": "Code Output:\n" + output_text
+                "content": f"Execution error:\n{output_text}"
             })
+        finally:
+            # Clean up the process
+            if execution_id in active_executions:
+                if active_executions[execution_id]['process'].is_alive():
+                    active_executions[execution_id]['process'].terminate()
+                del active_executions[execution_id]
+    
+    # Start background thread for monitoring
+    thread = threading.Thread(target=process_execution_results)
+    thread.daemon = True
+    thread.start()
+    
+    # Return immediately with a status that execution has started
+    return jsonify({
+        "status": "executing",
+        "message": "Code execution started",
+        "execution_id": execution_id
+    })
+
+@app.route('/execution_results/<execution_id>', methods=['GET'])
+def get_execution_results(execution_id):
+    """Get the results of a code execution"""
+    global execution_results
+    
+    if execution_id not in execution_results:
+        return jsonify({
+            "status": "not_found",
+            "message": "No results found for this execution ID"
+        }), 404
+    
+    result = execution_results[execution_id]
+    
+    # If execution is complete, we can clean up the results data after sending
+    if result['complete'] and result['status'] != 'running':
+        # Clone the result for response
+        response_data = dict(result)
         
-        # Save figures and add to conversation history
-        figure_data = []
-        for i, fig in enumerate(figures):
-            img_str = fig_to_base64(fig)
-            figure_data.append({
-                "id": i,
-                "data": img_str
-            })
-            
-            # Create a description of the figure to add to conversation history
-            # Get the title if it exists
-            title = fig._suptitle.get_text() if fig._suptitle else f"Figure {i+1}"
-            logger.info(f"Generated figure: {title}")
-            
-            # Add figure to conversation history
-            conversation_history.append({
-                "role": "figure",
-                "content": {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/png;base64,{img_str}",
-                    },
-                }
-            })
-        
-        logger.debug(f"Final conversation history length: {len(conversation_history)}")
+        # Clean up old results periodically (keep the last few)
+        all_executions = list(execution_results.keys())
+        if len(all_executions) > 10:  # Keep only last 10 results
+            oldest = all_executions[0]
+            if oldest != execution_id:  # Don't delete what we're returning
+                del execution_results[oldest]
         
         return jsonify({
-            "status": "success",
-            "output": output_text,
-            "figures": figure_data,
-            "history_length": len(conversation_history)
+            "status": result['status'],
+            "output": result['output'],
+            "figures": result['figures'],
+            "error": result['error'],
+            "complete": True
         })
+    
+    return jsonify({
+        "status": result['status'],
+        "complete": result['complete']
+    })
+
+@app.route('/stop_execution', methods=['POST'])
+def stop_execution():
+    """Stop a running code execution"""
+    global active_executions
+    global execution_results
+    
+    execution_id = request.json.get('execution_id')
+    
+    if not execution_id or execution_id not in active_executions:
+        logger.warning(f"Attempt to stop non-existent execution: {execution_id}")
+        return jsonify({
+            "status": "error",
+            "message": "No such execution found"
+        }), 404
+    
+    logger.info(f"Stopping execution: {execution_id}")
+    
+    try:
+        # Get the process
+        execution = active_executions[execution_id]
+        process = execution['process']
+        
+        # Update execution result status
+        if execution_id in execution_results:
+            execution_results[execution_id]['status'] = 'cancelled'
+            execution_results[execution_id]['output'] = "Execution was cancelled by user."
+            execution_results[execution_id]['complete'] = True
+        
+        # Terminate the process if it's still running
+        if process.is_alive():
+            process.terminate()
+            process.join(timeout=2.0)
+            
+            # If it didn't terminate, try to kill it
+            if process.is_alive():
+                logger.warning(f"Process {execution_id} did not terminate gracefully, forcing kill")
+                os.kill(process.pid, signal.SIGKILL)
+        
+        # Add to conversation history
+        conversation_history.append({
+            "role": "assistant",
+            "content": "Code execution was cancelled by user."
+        })
+        
+        # Clean up
+        del active_executions[execution_id]
+        
+        return jsonify({
+            "status": "cancelled",
+            "message": "Execution cancelled successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error stopping execution {execution_id}: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": f"Error stopping execution: {str(e)}"
+        }), 500
+
 
 @app.route('/debug/history', methods=['GET'])
 def debug_history():

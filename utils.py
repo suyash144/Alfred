@@ -7,6 +7,7 @@ import anthropic
 import re
 import base64
 import logging
+import signal
 
 # Configure logging
 logging.basicConfig(
@@ -69,7 +70,7 @@ SYSTEM_PROMPT = (
     "you will receive as your next prompt. The Python snippet must also include any required import statements. "
     "When you import a library, use the syntax 'import [LIBRARY] as [ALIAS]' rather than 'from [LIBRARY] import *'. This avoids namespace conflicts and keeps the code readable. "
     "Ensure that your each import statement is followed by a line break."
-    "Set the plot style using seaborn rather than matplotlib."
+    "Set the plot style using seaborn rather than matplotlib. Output figures to stdout using plt.show(). Do not save figures."
     "The data for analysis is stored in some variables, the names of which will be provided."
     "Do not waste time checking which variables are available."
 )
@@ -193,62 +194,63 @@ def build_llm_prompt(conversation_history):
 ###############################################################################
 # Execute code in shared namespace, capturing stdout, figures, and errors
 ###############################################################################
-def run_and_capture_output(code):
+def run_code_in_process(code, analysis_namespace, pipe_conn):
     """
-    Executes the given code string in the analysis_namespace context,
-    capturing stdout and any matplotlib figures generated.
+    Run code in a separate process.
     
-    Returns:
-        output_text (str): The captured stdout output (for user display)
-        figures (list): List of matplotlib figures created during execution
-        error_flag (bool): True if an exception occurred during execution
+    Args:
+        code (str): The code to execute
+        analysis_namespace (dict): Shared namespace for analysis
+        pipe_conn (multiprocessing.Connection): Pipe connection to send results back
     """
-    # Save original stdout to restore later
+    # We need to redirect stdout to capture output
+    import sys, io
+    import matplotlib.pyplot as plt
+    
+    # Configure signal handling for graceful termination
+    def handle_terminate(signum, frame):
+        pipe_conn.send(("TERMINATED", None, None, True))
+        pipe_conn.close()
+        sys.exit(0)
+    
+    signal.signal(signal.SIGTERM, handle_terminate)
+    
+    # Redirect stdout
     old_stdout = sys.stdout
-    
-    # Create a StringIO object to capture user output
     redirected_output = io.StringIO()
-    
-    # Redirect stdout to our StringIO object
     sys.stdout = redirected_output
-
-    # Close any existing figures so we only capture the new ones
+    
+    # Close any existing figures
     plt.close('all')
-
+    
     figures = []
     error_flag = False
     
     try:
-        # Execute the code in the shared namespace
+        # Execute the code
         exec(code, analysis_namespace)
         
-        # Collect any figures that were generated
-        figures = collect_matplotlib_figures()
-        
+        # Collect figures
+        for i in plt.get_fignums():
+            fig = plt.figure(i)
+            figures.append(fig)
+    
     except Exception as e:
         error_flag = True
-        
-        # Temporarily restore stdout to log the error to the terminal
-        sys.stdout = old_stdout
-        logger.error(f"Code execution error: {str(e)}")
-        
-        # Then redirect again to capture the error message for the user display
-        sys.stdout = redirected_output
         print(f"Execution Error: {str(e)}")
-        
-    finally:
-        # Always restore the original stdout
-        sys.stdout = old_stdout
     
-    # Get the captured output to show to the user
-    output_text = redirected_output.getvalue()
-
-    # If no output was generated, provide a helpful message to the user
-    if len(output_text) == 0 and len(figures) == 0:
-        output_text = "Please make sure your code prints something to stdout or generates some figures. Otherwise you will not receive any information."
-        logger.warning("Code execution produced no output or figures")
-
-    return output_text, figures, error_flag
+    finally:
+        # Get the captured output
+        sys.stdout = old_stdout
+        output_text = redirected_output.getvalue()
+        
+        # If no output was generated, provide a helpful message
+        if len(output_text) == 0 and len(figures) == 0:
+            output_text = "Please make sure your code prints something to stdout or generates some figures."
+    
+    # Send results back through the pipe
+    pipe_conn.send((output_text, figures, None, error_flag))
+    pipe_conn.close()
 
 ###############################################################################
 # Capture matplotlib figures

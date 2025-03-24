@@ -132,6 +132,17 @@
             background-color: #e68a00;
         }
 
+        /* Button in stop state */
+        #action-btn.btn-danger {
+            background-color: #dc3545;
+            border-color: #bd2130;
+            transition: all 0.3s ease;
+        }
+
+        #action-btn.btn-danger:hover {
+            background-color: #bd2130;
+        }
+
         /* Button in analyze state */
         #action-btn.btn-success {
             background-color: #4caf50;
@@ -273,14 +284,6 @@
             margin-bottom: 8px;
             position: relative;
         }
-
-        /* #summary-content li::before {
-            content: "•";
-            color: #3498db;
-            font-weight: bold;
-            position: absolute;
-            left: 0;
-        } */
 
         #summary-content p {
             line-height: 1.6;
@@ -495,6 +498,8 @@
             let currentCode = '';
             let buttonState = 'execute';
             let selectedFiles = [];
+            let codeExecutionInProgress = false;
+            let executionId = null;
 
             // Toggle file upload section based on data source selection
             $('input[name="dataSource"]').change(function () {
@@ -733,10 +738,13 @@
                     setTimeout(makeImagesExpandable, 500);
                 };
             });
+            
             // Dynamic action button - changes function based on state
             $('#action-btn').click(function () {
                 if (buttonState === 'execute') {
                     executeCode();
+                } else if (buttonState === 'stop') {
+                    stopExecution();
                 } else {
                     getNextAnalysis();
                 }
@@ -826,10 +834,13 @@
 
                 if (state === 'execute') {
                     actionBtn.text('Execute Code');
-                    actionBtn.removeClass('btn-success').addClass('btn-warning');
+                    actionBtn.removeClass('btn-success btn-danger').addClass('btn-warning');
+                } else if (state === 'stop') {
+                    actionBtn.text('Stop Execution');
+                    actionBtn.removeClass('btn-success btn-warning').addClass('btn-danger');
                 } else {
                     actionBtn.text('Get Next Analysis');
-                    actionBtn.removeClass('btn-warning').addClass('btn-success');
+                    actionBtn.removeClass('btn-warning btn-danger').addClass('btn-success');
                 }
             }
 
@@ -838,47 +849,149 @@
                 $('.loading').show();
                 $('#output-section').hide();
                 $('#figures-container').empty();
+                
+                // Set button to Stop Execution state
+                setButtonState('stop');
+                codeExecutionInProgress = true;
 
                 console.log("Executing code...");
 
+                // Generate a unique execution ID
+                executionId = Date.now().toString();
+                
                 $.ajax({
                     url: '/execute_code',
                     type: 'POST',
                     contentType: 'application/json',
                     data: JSON.stringify({
                         code: currentCode,
-                        summary: currentSummary
+                        summary: currentSummary,
+                        execution_id: executionId
                     }),
                     success: function (response) {
-                        $('.loading').hide();
-                        console.log("Code execution response:", response);
-
-                        // Display output
-                        $('#output-content').text(response.output);
-                        $('#output-section').show();
-
-                        // Display figures
-                        if (response.figures && response.figures.length > 0) {
-                            response.figures.forEach(function (figure, index) {
-                                const figureHtml = `
-                                    <div class="figure-container">
-                                        <h5>Figure ${index + 1}</h5>
-                                        <img src="data:image/png;base64,${figure.data}" alt="Figure ${index + 1}">
-                                    </div>
-                                `;
-                                $('#figures-container').append(figureHtml);
-                            });
-                        }
-                        // Refresh conversation history after a short delay
-                        setTimeout(refreshConversationHistory, 500);
-
-                        // Transform the button to "Get Next Analysis"
-                        setButtonState('analyze');
+                        console.log("Code execution started:", response);
+                        
+                        // Start polling for results
+                        pollExecutionResults(executionId);
                     },
                     error: function (error) {
                         $('.loading').hide();
+                        codeExecutionInProgress = false;
                         console.error("Execution error:", error);
-                        alert('Error executing code: ' + (error.responseJSON ? error.responseJSON.message : 'Unknown error'));
+                        alert('Error starting code execution: ' + (error.responseJSON ? error.responseJSON.message : 'Unknown error'));
+                        
+                        // Reset button to execute state
+                        setButtonState('execute');
+                    }
+                });
+            }
+
+            // Function to poll for execution results
+            function pollExecutionResults(executionId) {
+                if (!executionId) {
+                    console.error("No execution ID provided for polling");
+                    return;
+                }
+                
+                const pollInterval = setInterval(function() {
+                    if (!codeExecutionInProgress) {
+                        clearInterval(pollInterval);
+                        return;
+                    }
+                    
+                    $.ajax({
+                        url: `/execution_results/${executionId}`,
+                        type: 'GET',
+                        success: function (response) {
+                            console.log("Poll response:", response);
+                            
+                            if (response.complete) {
+                                // Clear the polling interval
+                                clearInterval(pollInterval);
+                                
+                                // Hide loading indicator
+                                $('.loading').hide();
+                                codeExecutionInProgress = false;
+                                
+                                // Display output if available
+                                if (response.output) {
+                                    $('#output-content').text(response.output);
+                                    $('#output-section').show();
+                                }
+                                
+                                // Display figures if any
+                                if (response.figures && response.figures.length > 0) {
+                                    response.figures.forEach(function (figure, index) {
+                                        const figureHtml = `
+                                            <div class="figure-container">
+                                                <h5>Figure ${index + 1}</h5>
+                                                <img src="data:image/png;base64,${figure.data}" alt="Figure ${index + 1}">
+                                            </div>
+                                        `;
+                                        $('#figures-container').append(figureHtml);
+                                    });
+                                }
+                                
+                                // Refresh conversation history after a short delay
+                                setTimeout(refreshConversationHistory, 500);
+                                
+                                // Transform the button to "Get Next Analysis" if not cancelled
+                                if (response.status !== 'cancelled') {
+                                    setButtonState('analyze');
+                                } else {
+                                    setButtonState('execute');
+                                }
+                            }
+                            // If not complete, we'll poll again
+                        },
+                        error: function (error) {
+                            console.error("Error polling for results:", error);
+                            clearInterval(pollInterval);
+                            $('.loading').hide();
+                            codeExecutionInProgress = false;
+                            setButtonState('execute');
+                        }
+                    });
+                }, 1000); // Poll every second
+            }
+
+            // Function to stop code execution
+            function stopExecution() {
+                if (!codeExecutionInProgress || !executionId) {
+                    return;
+                }
+                
+                console.log("Stopping code execution...");
+                
+                $.ajax({
+                    url: '/stop_execution',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        execution_id: executionId
+                    }),
+                    success: function (response) {
+                        console.log("Code execution stopped:", response);
+                        
+                        // Add message to output section
+                        $('#output-content').text("Execution cancelled by user.");
+                        $('#output-section').show();
+                        
+                        // Hide loading indicator
+                        $('.loading').hide();
+                        
+                        // Reset execution state
+                        codeExecutionInProgress = false;
+                        
+                        // Reset button to execute state
+                        setButtonState('execute');
+                        
+                        // Refresh conversation history after a short delay
+                        setTimeout(refreshConversationHistory, 500);
+                    },
+                    error: function (error) {
+                        console.error("Error stopping execution:", error);
+                        alert('Error stopping execution: ' + (error.responseJSON ? error.responseJSON.message : 'Unknown error'));
                     }
                 });
             }
