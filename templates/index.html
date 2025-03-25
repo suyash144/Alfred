@@ -349,6 +349,73 @@
             margin-right: auto;
         }
 
+        .expandable-code {
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            background-color: #f7f7f7;
+            transition: all 0.3s ease;
+        }
+        
+        .code-header {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e1e4e8;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #f1f3f5;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+        }
+        
+        .code-line-count {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-left: auto;
+            margin-right: 8px;
+        }
+        
+        .expand-code-btn {
+            padding: 2px 6px;
+            font-size: 0.75rem;
+        }
+        
+        .expandable-code.collapsed .code-full {
+            display: none;
+        }
+        
+        .expandable-code:not(.collapsed) .code-preview {
+            display: none;
+        }
+        
+        .code-full {
+            padding: 0;
+            margin: 0;
+        }
+        
+        .code-full pre {
+            margin: 0;
+            border-top: none;
+            border-top-left-radius: 0;
+            border-top-right-radius: 0;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .expandable-code .expand-icon,
+        .expandable-code .collapse-icon {
+            display: inline-block;
+            transition: transform 0.2s ease;
+        }
+        
+        .expandable-code.collapsed .collapse-icon {
+            display: none;
+        }
+        
+        .expandable-code:not(.collapsed) .expand-icon {
+            display: none;
+        }
+
         /* Custom animation for the download button when clicked */
         @keyframes pulse {
             0% {
@@ -440,7 +507,7 @@
                 <!-- Text History Window -->
                 <div class="mb-4">
                   <h4>Text History</h4>
-                  <div id="text-history" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                  <div id="text-history" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
                     <!-- text entries go here -->
                   </div>
                 </div>
@@ -448,7 +515,7 @@
                 <!-- Figure History Window -->
                 <div class="mb-4">
                     <h4>Figure History</h4>
-                    <div id="figure-history" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                    <div id="figure-history" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
                       <!-- figure entries go here -->
                     </div>
                 </div>
@@ -456,7 +523,7 @@
                 <!-- Code History Window -->
                 <div class="mb-4">
                   <h4>Code History</h4>
-                  <div id="code-history" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                  <div id="code-history" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
                     <!-- code entries go here -->
                   </div>
                 </div>
@@ -519,6 +586,7 @@
             let selectedFiles = [];
             let codeExecutionInProgress = false;
             let executionId = null;
+            let expandedCodeBlocks = [];
 
             // Toggle file upload section based on data source selection
             $('input[name="dataSource"]').change(function () {
@@ -1174,15 +1242,6 @@
                                 // Populate all three windows
                                 populateHistoryWindows(response.history);
                                 
-                                // Handle auto-scroll
-                                // const newScrollHeight = $textPanel[0].scrollHeight;
-                                // const wasAtBottom = (oldScrollTop + $textPanel.innerHeight() >= oldScrollHeight - 30);
-                                
-                                // if (!userIsScrolling || wasAtBottom) {
-                                //     $textPanel.scrollTop(newScrollHeight);
-                                // } else {
-                                //     $textPanel.scrollTop(oldScrollTop);
-                                // }
                             }
                         } else if (response.history && response.history.length === 0) {
                             // If there's no conversation
@@ -1190,6 +1249,7 @@
                             $('#code-history').html('<p>No code history yet.</p>');
                             $('#figure-history').html('<p>No figure history yet.</p>');
                         }
+
                     },
                     error: function (error) {
                         console.error("Error refreshing history:", error);
@@ -1299,6 +1359,7 @@
                 const textWindow = document.getElementById('text-history');
                 const codeWindow = document.getElementById('code-history');
                 const figureWindow = document.getElementById('figure-history');
+                const previewLines = 1;
 
                 // Clear each
                 textWindow.innerHTML = '';
@@ -1307,7 +1368,7 @@
 
                 let roleClass = 'user';
 
-                historyArray.forEach((entry) => {
+                historyArray.forEach((entry, entryIndex) => {
                     const { role, type, iteration, content } = entry;
                     const iterationLabel = `<strong>Iteration ${iteration}:</strong>`;
 
@@ -1359,11 +1420,21 @@
                             <div class="p-2 bg-light border rounded">${displayContent}</div>
                             </div>`;
                     } else {
-                        // Display proposed code in the code window
+                        const blockId = `code-block-${iteration}-${entryIndex}`;
+                        const wasExpanded = expandedCodeBlocks.includes(blockId);
+                        const codeLines = displayContent.split('\n').length;
                         codeWindow.innerHTML += `
-                            <div class="history-entry code-block">
-                            ${iterationLabel} <strong>CODE</strong>
-                            <pre><code>${displayContent}</code></pre>
+                            <div class="history-entry code-block expandable-code ${wasExpanded ? '' : 'collapsed'}" data-block-id="${blockId}">
+                                <div class="code-header">
+                                    ${iterationLabel} <strong> CODE</strong>
+                                    <span class="code-line-count">${codeLines} lines</span>
+                                    <button class="btn btn-sm btn-outline-secondary expand-code-btn">
+                                        <span class="expand-icon">▼</span><span class="collapse-icon">▲</span>
+                                    </button>
+                                </div>
+                                <div class="code-full">
+                                    <pre><code>${displayContent}</code></pre>
+                                </div>
                             </div>`;
                     }
                     } else if (type === 'figure') {
@@ -1378,8 +1449,49 @@
                 // Re-highlight any code blocks in the code window
                 codeWindow.querySelectorAll('code').forEach((block) => {
                     hljs.highlightElement(block);
-                });        
+                });
 
+                setupExpandableCodeBlocks();
+
+            }
+            
+            function setupExpandableCodeBlocks() {
+                document.querySelectorAll('.expandable-code').forEach(codeBlock => {
+                    const blockId = codeBlock.dataset.blockId;
+                    const expandBtn = codeBlock.querySelector('.expand-code-btn');
+                    
+                    if (expandBtn) {
+                        expandBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            codeBlock.classList.toggle('collapsed');
+                            
+                            // Update the expandedCodeBlocks array
+                            if (!codeBlock.classList.contains('collapsed')) {
+                                // Block is expanded, add to array if not already there
+                                if (!expandedCodeBlocks.includes(blockId)) {
+                                    expandedCodeBlocks.push(blockId);
+                                }
+                                
+                                // Highlight code when expanded
+                                const codeElement = codeBlock.querySelector('code');
+                                if (codeElement) {
+                                    hljs.highlightElement(codeElement);
+                                }
+                            } else {
+                                // Block is collapsed, remove from array
+                                expandedCodeBlocks = expandedCodeBlocks.filter(id => id !== blockId);
+                            }
+                        });
+                    }
+                    
+                    // Also make the preview clickable with the same behavior
+                    const preview = codeBlock.querySelector('.code-preview');
+                    if (preview) {
+                        preview.addEventListener('click', function() {
+                            expandBtn.click(); // Reuse the button click handler
+                        });
+                    }
+                });
             }
             
             codeWindow.querySelectorAll('code').forEach((block) => {

@@ -11,9 +11,6 @@ import logging
 from utils import *
 from data_loader import *
 
-# Set up logging
-logger = logging.getLogger('alfred.routes')
-
 ###############################################################################
 # Flask routes
 ###############################################################################
@@ -317,8 +314,6 @@ def get_analysis():
                     "message": str(e)
                 })
 
-
-
 @app.route('/execute_code', methods=['POST'])
 def execute_code():
     """Execute Python code in a separate process and capture outputs/figures"""
@@ -390,7 +385,7 @@ def execute_code():
     def process_execution_results():
         try:
             # Wait for results with a timeout
-            if parent_conn.poll(120.0):  # 120 second timeout
+            if parent_conn.poll(600.0):  # 600 second timeout
                 output_text, figures, _, had_error = parent_conn.recv()
                 
                 # Check if execution was terminated
@@ -453,7 +448,7 @@ def execute_code():
             else:
                 # Timeout occurred
                 logger.warning(f"Execution {execution_id} timed out")
-                output_text = "Execution timed out after 120 seconds. Consider optimizing your code or using smaller datasets."
+                output_text = "Execution timed out after 5 minutes. Consider optimizing your code or using smaller datasets."
                 
                 execution_results[execution_id]['status'] = 'timeout'
                 execution_results[execution_id]['output'] = output_text
@@ -599,7 +594,6 @@ def stop_execution():
             "message": f"Error stopping execution: {str(e)}"
         }), 500
 
-
 @app.route('/debug/history', methods=['GET'])
 def debug_history():
     """Debug endpoint to get the full conversation history"""
@@ -646,7 +640,7 @@ def send_feedback():
     """Send user feedback and get next analysis"""
     global conversation_history
     global iteration_count
-    
+
     feedback = request.json.get('feedback', '')
     summary = request.json.get('summary', '')
     code = request.json.get('code', '')

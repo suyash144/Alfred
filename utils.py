@@ -18,6 +18,7 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger('alfred')
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 if os.environ.get('MODEL')=="4o":
     MODEL_NAME = "gpt-4o-2024-11-20"
