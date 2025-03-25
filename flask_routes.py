@@ -23,9 +23,10 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'csv', 'npy', 'json'}
 
-# Global dictionary to track active execution processes
+# Global variables
 active_executions = {}
 execution_results = {}
+iteration_count = 0
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -54,12 +55,16 @@ def index():
             image_url = content.get("image_url", {}).get("url", "")
             formatted_history.append({
                 "role": "figure",
+                "type": "figure",
+                "iteration": entry.get("iteration", 0),
                 "content": image_url
             })
         else:
             # Handle text entries as before
             formatted_history.append({
                 "role": role,
+                "type": entry.get("type", "text"),
+                "iteration": entry.get("iteration", 0),
                 "content": content.replace("\n", "<br>") if isinstance(content, str) else content
             })
     
@@ -70,7 +75,10 @@ def index():
 def init_data():
     """Initialize dataset either with auto-generated data or user uploaded files"""
     global conversation_history
+    global iteration_count
+
     conversation_history = []
+    iteration_count = 0
     
     if not os.getenv('API_KEY'):
         logger.error("API_KEY not found in environment variables")
@@ -88,6 +96,8 @@ def init_data():
         result, data_inv = initialize_data()
         conversation_history.append({
             "role": "assistant",
+            "type": "text",
+            "iteration": iteration_count,
             "content": data_inv
         })
         return jsonify({"status": "success", "message": result})
@@ -142,6 +152,8 @@ def init_data():
             # Add the custom prompt as the first user prompt.
             conversation_history.append({
                 "role": "user",
+                "type": "text",
+                "iteration": iteration_count,
                 "content": custom_prompt
             })
         
@@ -207,6 +219,8 @@ def process_uploaded_files(file_info):
     # Add this inventory to the conversation history
     conversation_history.append({
         "role": "assistant",
+        "type": "text",
+        "iteration": iteration_count,
         "content": data_inventory
     })
     
@@ -217,6 +231,7 @@ def process_uploaded_files(file_info):
 def get_analysis():
     """Get analysis from LLM based on conversation history"""
     global conversation_history
+    global iteration_count
     logger.info(f"Getting analysis with conversation history length: {len(conversation_history)}")
 
     try:
@@ -238,6 +253,8 @@ def get_analysis():
         # Build prompt and call LLM
         prompt = build_llm_prompt(conversation_history)
         llm_response = call_llm_and_parse(client, prompt)
+
+        iteration_count += 1
         
         logger.info("Successfully got analysis from LLM")
         return jsonify({
@@ -321,17 +338,23 @@ def execute_code():
     # First, add the summary and proposed code to conversation history
     conversation_history.append({
         "role": "assistant", 
+        "type": "text",
+        "iteration": iteration_count,
         "content": summary
     })
     
     conversation_history.append({
         "role": "assistant",
+        "type": "code",
+        "iteration": iteration_count,
         "content": "Proposed code:\n" + code
     })
     
     # Add execution record to history
     conversation_history.append({
         "role": "user",
+        "type": "text",
+        "iteration": iteration_count,
         "content": "Execute code"
     })
     
@@ -393,6 +416,8 @@ def execute_code():
                     
                     conversation_history.append({
                         "role": "figure",
+                        "type": "figure",
+                        "iteration": iteration_count,
                         "content": {
                             "type": "image_url",
                             "image_url": {
@@ -413,11 +438,15 @@ def execute_code():
                     logger.warning(f"Execution {execution_id} resulted in error")
                     conversation_history.append({
                         "role": "assistant",
+                        "type": "code",
+                        "iteration": iteration_count,
                         "content": "Error while running code:\n" + output_text
                     })
                 elif output_text.strip():
                     conversation_history.append({
                         "role": "assistant",
+                        "type": "code",
+                        "iteration": iteration_count,
                         "content": "Code Output:\n" + output_text
                     })
                 
@@ -433,6 +462,8 @@ def execute_code():
                 
                 conversation_history.append({
                     "role": "assistant",
+                    "type": "code",
+                    "iteration": iteration_count,
                     "content": "Execution timed out:\n" + output_text
                 })
         except Exception as e:
@@ -446,6 +477,8 @@ def execute_code():
             
             conversation_history.append({
                 "role": "assistant",
+                "type": "code",
+                "iteration": iteration_count,
                 "content": f"Execution error:\n{output_text}"
             })
         finally:
@@ -546,6 +579,8 @@ def stop_execution():
         # Add to conversation history
         conversation_history.append({
             "role": "assistant",
+            "type": "code",
+            "iteration": iteration_count,
             "content": "Code execution was cancelled by user."
         })
         
@@ -581,19 +616,23 @@ def debug_history():
         if role == "figure":
             # Handle figure entries differently
             if isinstance(content, dict) and "image_url" in content:
-                logger.debug("Content has image_url")
+                pass
             else:
                 logger.warning(f"Unexpected content structure: {content}")
                 
             image_url = content.get("image_url", {}).get("url", "")
             formatted_history.append({
                 "role": "figure",
+                "type": "figure",
+                "iteration": entry.get("iteration", 0),
                 "content": image_url
             })
         else:
             # Handle text entries as before
             formatted_history.append({
                 "role": role,
+                "type": entry.get("type", "text"),
+                "iteration": entry.get("iteration", 0),
                 "content": content.replace("\n", "<br>") if isinstance(content, str) else content
             })
     
@@ -606,23 +645,32 @@ def debug_history():
 def send_feedback():
     """Send user feedback and get next analysis"""
     global conversation_history
+    global iteration_count
+    
     feedback = request.json.get('feedback', '')
     summary = request.json.get('summary', '')
     code = request.json.get('code', '')
+    iter = request.json.get('iteration', 0)
     
     logger.info(f"Feedback route - Current history length: {len(conversation_history)}")
     
     # Add to conversation history
     conversation_history.append({
         "role": "assistant",
+        "type": "text",
+        "iteration": iter,
         "content": summary
     })
     conversation_history.append({
         "role": "assistant",
+        "type": "code",
+        "iteration": iter,
         "content": "Proposed code:\n" + code
     })
     conversation_history.append({
         "role": "user",
+        "type": "text",
+        "iteration": iter,
         "content": feedback
     })
     
@@ -637,6 +685,8 @@ def send_feedback():
         
         prompt = build_llm_prompt(conversation_history)
         llm_response = call_llm_and_parse(client, prompt)
+
+        iteration_count += 1
         
         logger.info("Successfully got next analysis after feedback")
         

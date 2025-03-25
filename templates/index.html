@@ -375,7 +375,6 @@
     <div class="container mt-4">
         <h1 class="mb-4">Alfred</h1>
 
-        <!-- New Data Source Selection Section -->
         <div class="data-source-selector">
             <h3>Select Data Source</h3>
             <div class="form-check mb-2">
@@ -437,11 +436,31 @@
 
         <div class="row">
             <div class="col-md-6">
-                <h3>Conversation History</h3>
-                <div id="conversation-history">
-                    <!-- History will be loaded dynamically via JavaScript -->
-                    <p>Loading conversation history...</p>
+
+                <!-- Text History Window -->
+                <div class="mb-4">
+                  <h4>Text History</h4>
+                  <div id="text-history" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                    <!-- text entries go here -->
+                  </div>
                 </div>
+            
+                <!-- Figure History Window -->
+                <div class="mb-4">
+                    <h4>Figure History</h4>
+                    <div id="figure-history" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                      <!-- figure entries go here -->
+                    </div>
+                </div>
+
+                <!-- Code History Window -->
+                <div class="mb-4">
+                  <h4>Code History</h4>
+                  <div id="code-history" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                    <!-- code entries go here -->
+                  </div>
+                </div>
+
             </div>
 
             <div class="col-md-6">
@@ -673,7 +692,7 @@
                 // Function to make images clickable
                 function makeImagesExpandable() {
                     // Target all images in conversation history
-                    $('#conversation-history img').each(function () {
+                    $('#figure-image').each(function () {
                         if (!$(this).hasClass('expandable-image')) {
                             $(this).addClass('expandable-image');
                             $(this).css('cursor', 'pointer');
@@ -1136,90 +1155,40 @@
             // Function to refresh conversation history with direct DOM manipulation
             function refreshConversationHistory() {
                 console.log("Refreshing conversation history...");
-
-                // Remember the current scroll position and content height
-                const historyDiv = $('#conversation-history');
-                const oldScrollTop = historyDiv.scrollTop();
-                const oldScrollHeight = historyDiv[0].scrollHeight;
-
+                
+                // Track scrolling for the text panel only
+                const $textPanel = $('#text-history');
+                // const oldScrollTop = $textPanel.scrollTop();
+                // const oldScrollHeight = $textPanel[0].scrollHeight;
+                
+                // Store current history entry count
+                const oldHistoryLength = $textPanel.find('.history-entry').length;
+                
                 $.ajax({
                     url: '/debug/history',
                     type: 'GET',
                     success: function (response) {
-                        // Store the old length before updating
-                        const oldHistoryLength = $('#conversation-history .history-entry').length;
-
-                        // Update the content
                         if (response.history && response.history.length > 0) {
                             // Only rebuild if number of entries has changed
                             if (response.history.length !== oldHistoryLength) {
-                                // Clear and rebuild
-                                historyDiv.empty();
-
-                                response.history.forEach(function (entry) {
-                                    let roleClass = 'user';
-                                    let roleDisplay = 'USER';
-                                    let entryHtml = '';
-
-                                    if (entry.role === 'assistant') {
-                                        roleClass = 'assistant';
-                                        roleDisplay = 'ASSISTANT';
-                                        // For non-figure entries
-                                        const formattedContent = typeof entry.content === 'string'
-                                            ? entry.content.replace(/\n/g, '<br>')
-                                            : JSON.stringify(entry.content);
-
-                                        entryHtml = `
-                                            <div class="history-entry ${roleClass}">
-                                                <strong>${roleDisplay}:</strong>
-                                                <div>${formattedContent}</div>
-                                            </div>
-                                        `;
-                                    } else if (entry.role === 'figure') {
-                                        roleClass = 'figure';
-                                        roleDisplay = 'FIGURE';
-
-                                        // Special handling for figure entries
-                                        entryHtml = `
-                                            <div class="history-entry ${roleClass}">
-                                                <img src="${entry.content}" alt="Figure" class="figure-image">
-                                            </div>
-                                        `;
-                                    } else {
-                                        // For non-figure entries
-                                        const formattedContent = typeof entry.content === 'string'
-                                            ? entry.content.replace(/\n/g, '<br>')
-                                            : JSON.stringify(entry.content);
-
-                                        entryHtml = `
-                                            <div class="history-entry ${roleClass}">
-                                                <strong>${roleDisplay}:</strong>
-                                                <div>${formattedContent}</div>
-                                            </div>
-                                        `;
-                                    }
-
-                                    historyDiv.append(entryHtml);
-                                });
-
-                                // Handle scrolling behavior after content update
-                                const newScrollHeight = historyDiv[0].scrollHeight;
-
-                                // Only auto-scroll if:
-                                // 1. User is not manually scrolling, OR
-                                // 2. User was already at the bottom before the update
-                                const wasAtBottom = (oldScrollTop + historyDiv.innerHeight() >= oldScrollHeight - 30);
-
-                                if (!userIsScrolling || wasAtBottom) {
-                                    // Scroll to bottom
-                                    historyDiv.scrollTop(newScrollHeight);
-                                } else {
-                                    // If user was manually scrolling, maintain their relative position
-                                    historyDiv.scrollTop(oldScrollTop);
-                                }
+                                // Populate all three windows
+                                populateHistoryWindows(response.history);
+                                
+                                // Handle auto-scroll
+                                // const newScrollHeight = $textPanel[0].scrollHeight;
+                                // const wasAtBottom = (oldScrollTop + $textPanel.innerHeight() >= oldScrollHeight - 30);
+                                
+                                // if (!userIsScrolling || wasAtBottom) {
+                                //     $textPanel.scrollTop(newScrollHeight);
+                                // } else {
+                                //     $textPanel.scrollTop(oldScrollTop);
+                                // }
                             }
-                        } else if (response.history.length === 0) {
-                            historyDiv.html('<p>No conversation history yet. Start by initialising the data and getting an analysis.</p>');
+                        } else if (response.history && response.history.length === 0) {
+                            // If there's no conversation
+                            $('#text-history').html('<p>No conversation history yet.</p>');
+                            $('#code-history').html('<p>No code history yet.</p>');
+                            $('#figure-history').html('<p>No figure history yet.</p>');
                         }
                     },
                     error: function (error) {
@@ -1326,6 +1295,96 @@
                 return html;
             }
 
+            function populateHistoryWindows(historyArray) {
+                const textWindow = document.getElementById('text-history');
+                const codeWindow = document.getElementById('code-history');
+                const figureWindow = document.getElementById('figure-history');
+
+                // Clear each
+                textWindow.innerHTML = '';
+                codeWindow.innerHTML = '';
+                figureWindow.innerHTML = '';
+
+                let roleClass = 'user';
+
+                historyArray.forEach((entry) => {
+                    const { role, type, iteration, content } = entry;
+                    const iterationLabel = `<strong>Iteration ${iteration}:</strong>`;
+
+                    if (type === 'text') {
+                        if (role == 'assistant') {
+                            roleClass = 'assistant';
+                        } else {
+                            roleClass = 'user';
+                        }
+                    // Plain conversation text
+                    textWindow.innerHTML += `
+                        <div class="history-entry ${roleClass}">
+                        ${iterationLabel} <strong>${role.toUpperCase()}</strong>
+                        <div>${content}</div>
+                        </div>`;
+                    } else if (type === 'code') {
+                    // Check what kind of code content we have
+                    let displayContent = content;
+                    let isCodeOutput = false;
+                    
+                    // Check if it starts with 'Proposed code:'
+                    if (content.startsWith('Proposed code:')) {
+                        displayContent = content.substring('Proposed code:'.length).trim();
+                    } 
+                    // Check if it starts with 'Code Output:'
+                    else if (content.startsWith('Code Output:')) {
+                        displayContent = content.substring('Code Output:'.length).trim();
+                        isCodeOutput = true;
+                    }
+                    // Check for error messages
+                    else if (content.startsWith('Error while running code:')) {
+                        displayContent = content.substring('Error while running code:'.length).trim();
+                        isCodeOutput = true;
+                    }
+                    else if (content.startsWith('Execution error:')) {
+                        displayContent = content.substring('Execution error:'.length).trim();
+                        isCodeOutput = true;
+                    }
+                    else if (content.startsWith('Execution timed out:')) {
+                        displayContent = content.substring('Execution timed out:'.length).trim();
+                        isCodeOutput = true;
+                    }
+                    
+                    if (isCodeOutput) {
+                        // Display code output as text in the code window
+                        codeWindow.innerHTML += `
+                            <div class="history-entry">
+                            ${iterationLabel} <strong>CODE OUTPUT</strong>
+                            <div class="p-2 bg-light border rounded">${displayContent}</div>
+                            </div>`;
+                    } else {
+                        // Display proposed code in the code window
+                        codeWindow.innerHTML += `
+                            <div class="history-entry code-block">
+                            ${iterationLabel} <strong>CODE</strong>
+                            <pre><code>${displayContent}</code></pre>
+                            </div>`;
+                    }
+                    } else if (type === 'figure') {
+                    // Figures
+                    figureWindow.innerHTML += `
+                        <div class="history-entry">
+                        ${iterationLabel} <strong>FIGURES</strong>
+                        <img src="${content}" alt="Figure" class="figure-image expandable-image" />
+                        </div>`;
+                    }
+                });
+                // Re-highlight any code blocks in the code window
+                codeWindow.querySelectorAll('code').forEach((block) => {
+                    hljs.highlightElement(block);
+                });        
+
+            }
+            
+            codeWindow.querySelectorAll('code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
             // Logging middleware for debugging
             $(document).ajaxSend(function (event, jqxhr, settings) {
                 console.log("Ajax request:", settings.type, settings.url);
