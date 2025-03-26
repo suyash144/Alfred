@@ -454,8 +454,6 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
     """
     # Use custom system prompt if provided, otherwise use default
     system_prompt = SYSTEM_PROMPT+custom_system_prompt if custom_system_prompt else SYSTEM_PROMPT
-
-    logger.info(f"Calling LLM with model: {MODEL_NAME}")
     
     if MODEL_NAME.startswith('claude'):
         messages = [
@@ -487,7 +485,6 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
     
     try:
         parsed_response = safe_json_loads(response_content)
-        logger.info("Successfully parsed LLM response")
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse LLM response: {e}")
         if "Invalid \escape" in str(e):
@@ -518,7 +515,6 @@ def get_openai_client():
 
 def get_client(model_name):
     """Returns the appropriate client based on the model name"""
-    logger.info(f"Initializing client for model: {model_name}")
     
     if model_name=="4o" or model_name=="o1":
         return get_openai_client()

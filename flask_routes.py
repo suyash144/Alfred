@@ -63,7 +63,7 @@ def index():
                 "role": role,
                 "type": entry.get("type", "text"),
                 "iteration": entry.get("iteration", 0),
-                "content": content.replace("\n", "<br>") if isinstance(content, str) else content
+                "content": content
             })
     
     return render_template('index.html', 
@@ -87,7 +87,7 @@ def init_data():
     
     # Check which data source is being used
     data_source = request.form.get('dataSource', 'auto')
-    logger.info(f"Initializing with data source: {data_source}")
+    logger.info(f"Initialising with data source: {data_source}")
     
     if data_source == 'auto':
         # Use the default auto-generated data
@@ -131,7 +131,6 @@ def init_data():
                     'path': file_path,
                     'type': filename.rsplit('.', 1)[1].lower()
                 })
-                logger.info(f"Uploaded file: {filename}")
         
         if not uploaded_files:
             logger.warning("No valid files were uploaded")
@@ -607,6 +606,7 @@ def debug_history():
     for entry in conversation_history:
         role = entry.get("role", "")
         content = entry.get("content", "")
+        type = entry.get("type", "text")
 
         if role == "figure":
             # Handle figure entries differently
@@ -621,6 +621,15 @@ def debug_history():
                 "type": "figure",
                 "iteration": entry.get("iteration", 0),
                 "content": image_url
+            })
+        elif type == "code":
+            if content.startswith("Code Output:"):
+                content = content.replace("\n", "<br>")
+            formatted_history.append({
+                "role": role,
+                "type": entry.get("type", "text"),
+                "iteration": entry.get("iteration", 0),
+                "content": content
             })
         else:
             # Handle text entries as before

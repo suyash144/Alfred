@@ -506,7 +506,7 @@
 
                 <!-- Text History Window -->
                 <div class="mb-4">
-                  <h4>Text History</h4>
+                  <h4>Conversation History</h4>
                   <div id="text-history" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
                     <!-- text entries go here -->
                   </div>
@@ -1228,8 +1228,6 @@
                 
                 // Track scrolling for the text panel only
                 const $textPanel = $('#text-history');
-                // const oldScrollTop = $textPanel.scrollTop();
-                // const oldScrollHeight = $textPanel[0].scrollHeight;
                 
                 // Store current history entry count
                 const oldHistoryLength = $textPanel.find('.history-entry').length;
@@ -1397,7 +1395,7 @@
                     } 
                     // Check if it starts with 'Code Output:'
                     else if (content.startsWith('Code Output:')) {
-                        displayContent = content.substring('Code Output:'.length).trim();
+                        displayContent = content.substring('Code Output:<br>'.length).trim();
                         isCodeOutput = true;
                     }
                     // Check for error messages
