@@ -681,7 +681,9 @@
                     success: function (response) {
                         alert(response.message);
                         // Clear conversation history
-                        $('#conversation-history').empty();
+                        $('#text-history').empty();
+                        $('#figure-history').empty();
+                        $('#code-history').empty();
                         // Clear current analysis
                         $('#summary-section, #code-section, #feedback-section, #output-section').hide();
                         $('#figures-container').empty();
@@ -808,7 +810,7 @@
                 });
 
                 // Start observing the conversation history and figures container
-                observer.observe(document.getElementById('conversation-history'), {
+                observer.observe(document.getElementById('figure-history'), {
                     childList: true,
                     subtree: true
                 });
@@ -1132,7 +1134,7 @@
             let lastScrollTop = 0;
 
             // Detect manual scrolling
-            $('#conversation-history').on('scroll', function () {
+            $('#text-history').on('scroll', function () {
                 userIsScrolling = true;
                 lastScrollTop = $(this).scrollTop();
 
@@ -1426,7 +1428,7 @@
                         codeWindow.innerHTML += `
                             <div class="history-entry code-block expandable-code ${wasExpanded ? '' : 'collapsed'}" data-block-id="${blockId}">
                                 <div class="code-header">
-                                    ${iterationLabel} <strong> CODE</strong>
+                                    ${iterationLabel} <strong>&nbspCODE</strong>
                                     <span class="code-line-count">${codeLines} lines</span>
                                     <button class="btn btn-sm btn-outline-secondary expand-code-btn">
                                         <span class="expand-icon">▼</span><span class="collapse-icon">▲</span>

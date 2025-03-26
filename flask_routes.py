@@ -7,7 +7,6 @@ import multiprocessing
 import time
 import threading
 from werkzeug.utils import secure_filename
-import logging
 from utils import *
 from data_loader import *
 
@@ -15,6 +14,8 @@ from data_loader import *
 # Flask routes
 ###############################################################################
 app = Flask(__name__)
+
+logger.info("Click here to run Alfred: http://localhost:5000")
 
 # Configure upload settings
 UPLOAD_FOLDER = 'uploads'
