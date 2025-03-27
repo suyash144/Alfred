@@ -596,6 +596,91 @@
             let executionId = null;
             let expandedCodeBlocks = [];
 
+            let scrollingState = {
+                active: false, // Whether user is actively scrolling in any window
+                positions: {}, // Store scroll positions for each scrollable element
+                resetTimer: null, // Timer to reset active state
+            };
+
+            // Function to track scrolling in any scrollable element
+            function setupScrollTracking() {
+                // Elements to track (using event delegation for dynamic content)
+                $(document).on('scroll', '#text-history, #code-history, #output-history, #figure-history, .code-full pre', function() {
+                    // Mark as actively scrolling
+                    scrollingState.active = true;
+                    
+                    // Store current scroll position for this element
+                    const elementId = $(this).attr('id') || $(this).closest('.expandable-code').data('block-id');
+                    if (elementId) {
+                        scrollingState.positions[elementId] = $(this).scrollTop();
+                    }
+                    
+                    // Reset the scrolling state after 2 seconds of inactivity
+                    clearTimeout(scrollingState.resetTimer);
+                    scrollingState.resetTimer = setTimeout(function() {
+                        scrollingState.active = false;
+                    }, 2000);
+                });
+            }
+
+            // Save scroll positions before refreshing content
+            function saveScrollPositions() {
+                $('#text-history, #code-history, #output-history, #figure-history').each(function() {
+                    const id = $(this).attr('id');
+                    scrollingState.positions[id] = $(this).scrollTop();
+                });
+                
+                // Also save positions for expanded code blocks
+                $('.expandable-code:not(.collapsed)').each(function() {
+                    const blockId = $(this).data('block-id');
+                    const preElement = $(this).find('pre');
+                    if (preElement.length) {
+                        scrollingState.positions[blockId] = preElement.scrollTop();
+                    }
+                });
+            }
+
+            // Restore scroll positions after refreshing
+            function restoreScrollPositions() {
+                // Restore for main history windows
+                Object.keys(scrollingState.positions).forEach(id => {
+                    const element = $(`#${id}`);
+                    if (element.length) {
+                        element.scrollTop(scrollingState.positions[id]);
+                    } else {
+                        // Try to find code blocks by data attribute
+                        const codeBlock = $(`.expandable-code[data-block-id="${id}"]`);
+                        if (codeBlock.length && !codeBlock.hasClass('collapsed')) {
+                            codeBlock.find('pre').scrollTop(scrollingState.positions[id]);
+                        }
+                    }
+                });
+            }
+
+            // Scroll to bottom of all history panels
+            function scrollAllToBottom() {
+                $('#text-history, #code-history, #output-history, #figure-history').each(function() {
+                    const element = $(this);
+                    element.scrollTop(element[0].scrollHeight);
+                });
+            }
+
+            $(document).ready(function() {
+                // Initialize scroll tracking
+                setupScrollTracking();
+                
+                // Update the history refresh interval to use our new scroll system
+                // Clean up any existing interval
+                if (window.historyRefreshInterval) {
+                    clearInterval(window.historyRefreshInterval);
+                }
+                
+                // Set up refresh interval that respects scroll state
+                window.historyRefreshInterval = setInterval(function () {
+                    refreshConversationHistory();
+                }, 5000); // Every 5 seconds
+            });
+
             // Toggle file upload section based on data source selection
             $('input[name="dataSource"]').change(function () {
                 if ($(this).val() === 'custom') {
@@ -1099,6 +1184,9 @@
                 $('#summary-section, #code-section, #feedback-section, #output-section').hide();
                 $('#figures-container').empty();
 
+                // Reset scrolling state to ensure auto-scroll to bottom for new analysis
+                scrollingState.active = false;
+
                 $.ajax({
                     url: '/get_analysis',
                     type: 'GET',
@@ -1123,7 +1211,10 @@
                             $('#feedback-section').show();
 
                             // Refresh conversation history after a short delay
-                            setTimeout(refreshConversationHistory, 500);
+                            setTimeout(function() {
+                                refreshConversationHistory();
+                                scrollAllToBottom(); // Ensure we scroll to bottom for new analysis
+                            }, 500);
 
                             // Transform the button back to "Execute Code"
                             setButtonState('execute');
@@ -1138,21 +1229,6 @@
                     }
                 });
             }
-
-            let userIsScrolling = false;
-            let lastScrollTop = 0;
-
-            // Detect manual scrolling
-            $('#text-history').on('scroll', function () {
-                userIsScrolling = true;
-                lastScrollTop = $(this).scrollTop();
-
-                // Reset the flag after 2 seconds of no scrolling
-                clearTimeout($.data(this, 'scrollTimer'));
-                $.data(this, 'scrollTimer', setTimeout(function () {
-                    userIsScrolling = false;
-                }, 2000));
-            });
 
             // Send feedback button
             $('#send-feedback-btn').click(function () {
@@ -1234,12 +1310,11 @@
             // Function to refresh conversation history with direct DOM manipulation
             function refreshConversationHistory() {
                 console.log("Refreshing conversation history...");
-                
-                // Track scrolling for the text panel only
                 const $textPanel = $('#text-history');
                 
-                // Store current history entry count
+                // Store current history entry count and save scroll positions
                 const oldHistoryLength = $textPanel.find('.history-entry').length;
+                saveScrollPositions();
                 
                 $.ajax({
                     url: '/debug/history',
@@ -1248,9 +1323,15 @@
                         if (response.history && response.history.length > 0) {
                             // Only rebuild if number of entries has changed
                             if (response.history.length !== oldHistoryLength) {
-                                // Populate all three windows
+                                // Populate all windows
                                 populateHistoryWindows(response.history);
                                 
+                                // Restore scroll positions if user was scrolling, otherwise scroll to bottom
+                                if (scrollingState.active) {
+                                    restoreScrollPositions();
+                                } else {
+                                    scrollAllToBottom();
+                                }
                             }
                         } else if (response.history && response.history.length === 0) {
                             // If there's no conversation
@@ -1259,7 +1340,6 @@
                             $('#output-history').html('<p>No code output history yet.</p>');
                             $('#figure-history').html('<p>No figure history yet.</p>');
                         }
-
                     },
                     error: function (error) {
                         console.error("Error refreshing history:", error);
@@ -1322,10 +1402,6 @@
 
                 // Set up a less aggressive refresh interval
                 window.historyRefreshInterval = setInterval(function () {
-                    // Only auto-refresh if user is not actively scrolling
-                    if (!userIsScrolling) {
-                        refreshConversationHistory();
-                    }
                 }, 5000); // Every 5 seconds instead of 3
             });
 
