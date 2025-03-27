@@ -503,20 +503,28 @@
 
         <div class="row">
             <div class="col-md-6">
-
-                <!-- Text History Window -->
-                <div class="mb-4">
-                  <h4>Conversation History</h4>
-                  <div id="text-history" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
-                    <!-- text entries go here -->
-                  </div>
-                </div>
             
                 <!-- Figure History Window -->
                 <div class="mb-4">
                     <h4>Figure History</h4>
                     <div id="figure-history" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
                       <!-- figure entries go here -->
+                    </div>
+                </div>
+
+                <!-- Code Output History Window -->
+                <div class="mb-4">
+                    <h4>Code Output History</h4>
+                    <div id="output-history" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                      <!-- code output entries go here -->
+                    </div>
+                </div>
+
+                <!-- Text History Window -->
+                <div class="mb-4">
+                    <h4>Conversation History</h4>
+                    <div id="text-history" style="max-height: 500px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                      <!-- text entries go here -->
                     </div>
                 </div>
 
@@ -684,6 +692,7 @@
                         $('#text-history').empty();
                         $('#figure-history').empty();
                         $('#code-history').empty();
+                        $('#output-history').empty();
                         // Clear current analysis
                         $('#summary-section, #code-section, #feedback-section, #output-section').hide();
                         $('#figures-container').empty();
@@ -1247,6 +1256,7 @@
                             // If there's no conversation
                             $('#text-history').html('<p>No conversation history yet.</p>');
                             $('#code-history').html('<p>No code history yet.</p>');
+                            $('#output-history').html('<p>No code output history yet.</p>');
                             $('#figure-history').html('<p>No figure history yet.</p>');
                         }
 
@@ -1358,13 +1368,14 @@
             function populateHistoryWindows(historyArray) {
                 const textWindow = document.getElementById('text-history');
                 const codeWindow = document.getElementById('code-history');
+                const outputWindow = document.getElementById('output-history');
                 const figureWindow = document.getElementById('figure-history');
-                const previewLines = 1;
 
                 // Clear each
                 textWindow.innerHTML = '';
                 codeWindow.innerHTML = '';
                 figureWindow.innerHTML = '';
+                outputWindow.innerHTML = '';
 
                 let roleClass = 'user';
 
@@ -1384,7 +1395,7 @@
                         ${iterationLabel} <strong>${role.toUpperCase()}</strong>
                         <div>${content}</div>
                         </div>`;
-                    } else if (type === 'code') {
+                    } else if (type === 'code' || type === 'output') {
                     // Check what kind of code content we have
                     let displayContent = content;
                     let isCodeOutput = false;
@@ -1414,7 +1425,7 @@
                     
                     if (isCodeOutput) {
                         // Display code output as text in the code window
-                        codeWindow.innerHTML += `
+                        outputWindow.innerHTML += `
                             <div class="history-entry">
                             ${iterationLabel} <strong>CODE OUTPUT</strong>
                             <div class="p-2 bg-light border rounded">${displayContent}</div>

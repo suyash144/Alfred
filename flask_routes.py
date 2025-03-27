@@ -433,14 +433,14 @@ def execute_code():
                     logger.warning(f"Execution {execution_id} resulted in error")
                     conversation_history.append({
                         "role": "assistant",
-                        "type": "code",
+                        "type": "output",
                         "iteration": iteration_count,
                         "content": "Error while running code:\n" + output_text
                     })
                 elif output_text.strip():
                     conversation_history.append({
                         "role": "assistant",
-                        "type": "code",
+                        "type": "output",
                         "iteration": iteration_count,
                         "content": "Code Output:\n" + output_text
                     })
@@ -457,7 +457,7 @@ def execute_code():
                 
                 conversation_history.append({
                     "role": "assistant",
-                    "type": "code",
+                    "type": "output",
                     "iteration": iteration_count,
                     "content": "Execution timed out:\n" + output_text
                 })
@@ -472,7 +472,7 @@ def execute_code():
             
             conversation_history.append({
                 "role": "assistant",
-                "type": "code",
+                "type": "output",
                 "iteration": iteration_count,
                 "content": f"Execution error:\n{output_text}"
             })
@@ -574,7 +574,7 @@ def stop_execution():
         # Add to conversation history
         conversation_history.append({
             "role": "assistant",
-            "type": "code",
+            "type": "output",
             "iteration": iteration_count,
             "content": "Code execution was cancelled by user."
         })
@@ -623,11 +623,18 @@ def debug_history():
                 "content": image_url
             })
         elif type == "code":
+            formatted_history.append({
+                "role": role,
+                "type": entry.get("type", "code"),
+                "iteration": entry.get("iteration", 0),
+                "content": content
+            })
+        elif type == "output":
             if content.startswith("Code Output:"):
                 content = content.replace("\n", "<br>")
             formatted_history.append({
                 "role": role,
-                "type": entry.get("type", "text"),
+                "type": entry.get("type", "output"),
                 "iteration": entry.get("iteration", 0),
                 "content": content
             })
