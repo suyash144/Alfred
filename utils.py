@@ -393,9 +393,7 @@ def safe_json_loads(json_str):
     Raises:
         ValueError: If JSON cannot be parsed even after fixing problematic sequences
     """
-    import json
-    
-    # First try parsing as-is
+
     try:
         return json.loads(json_str)
     except json.JSONDecodeError as e:
@@ -431,6 +429,16 @@ def safe_json_loads(json_str):
                     context = aggressive_fix[max(0, error_pos-20):min(len(aggressive_fix), error_pos+20)]
                     logger.error(f"All JSON parsing attempts failed: {str(e3)}")
                     raise ValueError(f"Could not parse JSON even after fixes: {str(e3)}\nError near: {context}")
+        
+        elif "Unterminated string" in error_message:
+            # Attempt to fix by adding a closing quote at the end
+            logger.info("Attempting to fix JSON by adding a closing quote")
+            fixed_json = json_str + r'"'
+            try:
+                return json.loads(fixed_json)
+            except json.JSONDecodeError as e2:
+                logger.error(f"Adding closing quote did not fix JSON parsing: {str(e2)}")
+                raise ValueError(f"JSON parsing error: {error_message}")
         else:
             # Some other JSON parsing error
             logger.error(f"JSON parsing failed with error: {error_message}")
