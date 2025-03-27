@@ -4,6 +4,8 @@ from pydantic import BaseModel
 import json
 import openai
 import anthropic
+from google import genai
+from google.genai import types
 import re
 import base64
 import logging
@@ -26,6 +28,8 @@ elif os.environ.get('MODEL')=="o1":
     MODEL_NAME = "o1-2024-12-17"
 elif os.environ.get('MODEL')=="claude":
     MODEL_NAME = "claude-3-7-sonnet-20250219"
+elif os.environ.get('MODEL')=='gemini':
+    MODEL_NAME = "gemini-2.5-pro-exp-03-25"
 else:
     MODEL_NAME = "gpt-4o-2024-11-20"
 
@@ -453,7 +457,7 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
     using the JSON schema automatically.
     
     Args:
-        client: LLM client (OpenAI or Anthropic)
+        client: LLM client (OpenAI, Google or Anthropic)
         prompt: List of content parts for the prompt
         custom_system_prompt: Optional custom system prompt to add to default
     
@@ -476,7 +480,15 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
         response_content = completion.content[0].text
         response_content = re.sub(r'^```json\s*|\s*```$', '', response_content, flags=re.MULTILINE)
         response_content = extract_json_dict(response_content)
-
+    elif MODEL_NAME.startswith('gemini'):
+        contents = types.Content(
+            role = "user",
+            parts = [types.Part.from_text(text=prompt),]
+        )
+        # ISSUE IS THAT PROMPT IS A LIST BUT GEMINI EXPECTS A STRING
+        # SEE COLAB NOTEBOOK IN DRIVE FOR HOW TO STRUCTURE PROMPTS FOR GEMINI
+        response = client.models.generate_content(...)
+        response_content = response.text
     else:
         messages = [
             {"role": "system", "content": system_prompt},
@@ -512,31 +524,25 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
 ###############################################################################
 # Functions to get LLM clients
 ###############################################################################
-def get_openai_client():
-    """Returns an initialized OpenAI client"""
-    api_key = os.environ.get('API_KEY')
+def get_client(model_name):
+    """Returns the appropriate client based on the model name"""
+
+    api_key = os.environ.get('API_KEY', None)
     if not api_key:
         logger.error("API_KEY environment variable not set")
         raise ValueError("API_KEY environment variable is required")
-        
-    return openai.OpenAI(api_key=api_key)
-
-def get_client(model_name):
-    """Returns the appropriate client based on the model name"""
     
     if model_name=="4o" or model_name=="o1":
-        return get_openai_client()
+        return openai.OpenAI(api_key=api_key)
     elif model_name=="claude":
-        api_key = os.environ.get('API_KEY')
-        if not api_key:
-            logger.error("API_KEY environment variable not set")
-            raise ValueError("API_KEY environment variable is required")
-            
         client = anthropic.Anthropic(api_key=api_key)
+        return client
+    elif model_name=="gemini":
+        client = genai.Client(api_key=api_key)
         return client
     else:
         logger.error(f"Invalid model name: {model_name}")
-        raise ValueError("Invalid model name - choose 4o, o1, or claude")
+        raise ValueError("Invalid model name - choose 4o, o1, gemini or claude")
 
 ###############################################################################
 # Function to convert matplotlib figure to base64 for web display

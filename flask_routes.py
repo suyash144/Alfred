@@ -240,11 +240,13 @@ def get_analysis():
                 logger.info("Using model: o1 (Note: Better but slower than GPT-4o)")
             elif model_name == "claude":
                 logger.info("Using model: Claude 3.7 Sonnet (Note: Best responses)")
+            elif model_name == "gemini":
+                logger.info("Using model: Gemini 2.5 Pro (Note: Experimental)")
             elif model_name == "4o":
                 logger.info("Using model: GPT-4o (Note: Cheapest per token)")
         else:
             model_name = "4o"
-            client = get_openai_client()
+            client = get_client(model_name)
             logger.info("Using default model: GPT-4o")
         
         # Build prompt and call LLM
@@ -692,7 +694,7 @@ def send_feedback():
         if os.getenv('MODEL', default=None):
             client = get_client(os.environ.get('MODEL'))
         else:
-            client = get_openai_client()
+            client = get_client("4o")
         
         prompt = build_llm_prompt(conversation_history)
         llm_response = call_llm_and_parse(client, prompt)
