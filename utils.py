@@ -144,7 +144,7 @@ def build_llm_prompt(conversation_history):
         "text": text_prompt
     })
     
-    # Now add any figures from the most recent part of the conversation
+    # Now add any figures from the conversation
     for entry in conversation_history:
         if entry.get("role") == "figure":
             fig_content = entry.get("content")          # this is a dictionary
@@ -178,6 +178,14 @@ def build_llm_prompt(conversation_history):
                             "data": base64_img
                         }
                     })
+
+            elif MODEL_NAME.startswith('gemini'):
+                content_parts.append(types.Part.from_bytes(
+                        mime_type = 'image/png',
+                        data = base64.b64decode(extract_base64_from_data_url(base64_img))
+                    )
+                )
+
             else:
                 if base64_img.startswith("data:image"):
                     content_parts.append({
@@ -483,9 +491,13 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
 
     elif MODEL_NAME.startswith('gemini'):
         text = prompt[0]["text"]
+        parts = [types.Part.from_text(text=text)]
+        for msg in prompt[1:]:
+            parts.append(msg)
+
         contents = types.Content(
             role = "user",
-            parts = [types.Part.from_text(text=text),]
+            parts = parts
         )
         gen_config = types.GenerateContentConfig(
             response_mime_type="application/json",
