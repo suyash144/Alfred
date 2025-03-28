@@ -48,8 +48,8 @@ SYSTEM_PROMPT = (
     "You are a helpful assistant designed to perform iterative exploratory data analysis. "
     "The data for analysis is stored in some variables, the names of which will be provided below. "
     "On each step, you must output valid JSON that "
-    "follows the LLMResponse schema (two fields: \"text_summary\" and \"python_code\"). Use double quotes for the key strings. Each field should point to a string."
-    "Do not output extra keys or any text outside the JSON."
+    "follows the LLMResponse schema (two fields: \"text_summary\" and \"python_code\"). Only double quotes are interpreted as valid JSON strings. Single quotes can only be used inside a string."
+    "Each field should point to a string. Do not output extra keys or any text outside the JSON."
     
     "\n\nYour 'text_summary' should be structured with the following sections:"
     "\n1. ## Interpretation of last analysis"
@@ -273,7 +273,7 @@ def collect_matplotlib_figures():
     return figs
 
 ###############################################################################
-# Extract a JSON dictionary from a string (removing other text)
+# Functions to safely load JSON from LLM output
 ###############################################################################
 def extract_json_dict(text):
     """
@@ -480,15 +480,26 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
         response_content = completion.content[0].text
         response_content = re.sub(r'^```json\s*|\s*```$', '', response_content, flags=re.MULTILINE)
         response_content = extract_json_dict(response_content)
+
     elif MODEL_NAME.startswith('gemini'):
+        text = prompt[0]["text"]
         contents = types.Content(
             role = "user",
-            parts = [types.Part.from_text(text=prompt),]
+            parts = [types.Part.from_text(text=text),]
         )
-        # ISSUE IS THAT PROMPT IS A LIST BUT GEMINI EXPECTS A STRING
-        # SEE COLAB NOTEBOOK IN DRIVE FOR HOW TO STRUCTURE PROMPTS FOR GEMINI
-        response = client.models.generate_content(...)
+        gen_config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            system_instruction=[
+                types.Part.from_text(text=system_prompt),
+            ],
+        )
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=contents,
+            config=gen_config
+        )
         response_content = response.text
+
     else:
         messages = [
             {"role": "system", "content": system_prompt},

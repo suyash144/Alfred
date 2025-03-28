@@ -201,7 +201,12 @@ def process_uploaded_files(file_info):
                     jsonfile = json.load(f)
                 var_name = f'json_{base_name}'
                 analysis_namespace[var_name] = jsonfile
-                processed_files.append((var_name, f"Json file"))
+                if type(jsonfile) is list:
+                    processed_files.append((var_name, f"List from JSON file"))
+                elif type(jsonfile) is dict:
+                    processed_files.append((var_name, f"Dictionary from JSON file"))
+                else:
+                    processed_files.append((var_name, f"Python object (not list or dict) loaded from a JSON file"))
                 logger.info(f"Loaded JSON file: {file_path} as {var_name}")
                 
         except Exception as e:
@@ -255,7 +260,7 @@ def get_analysis():
 
         iteration_count += 1
         
-        logger.info("Successfully got analysis from LLM")
+        logger.info(f"Successfully got analysis from {model_name}")
         return jsonify({
             "status": "success",
             "summary": llm_response.text_summary,
