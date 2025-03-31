@@ -10,6 +10,7 @@ import re
 import base64
 import logging
 import signal
+import dill
 
 # Configure logging
 logging.basicConfig(
@@ -31,7 +32,7 @@ elif os.environ.get('MODEL')=="claude":
 elif os.environ.get('MODEL')=='gemini':
     MODEL_NAME = "gemini-2.5-pro-exp-03-25"
 else:
-    MODEL_NAME = "gpt-4o-2024-11-20"
+    MODEL_NAME = "gemini-2.5-pro-exp-03-25"
 
 ###############################################################################
 # Global analysis namespace for executed code (retains state across iterations)
@@ -77,7 +78,7 @@ SYSTEM_PROMPT = (
     "Ensure that each import statement is followed by a line break."
     "Set the plot style using seaborn rather than matplotlib. Output figures to stdout using plt.show(). Do not save figures."
     "The data for analysis is stored in some variables, the names of which will be provided."
-    "Do not waste time checking which variables are available."
+    "Do not waste time checking which variables are available. If you define a new variable, it will be accessible in future iterations."
 )
 
 # This is the fixed part of the user prompt appended at the end of conversation history
@@ -262,7 +263,7 @@ def run_code_in_process(code, analysis_namespace, pipe_conn):
             output_text = "Please make sure your code prints something to stdout or generates some figures."
     
     # Send results back through the pipe
-    pipe_conn.send((output_text, figures, None, error_flag))
+    pipe_conn.send((output_text, figures, None, error_flag, dill.dumps(analysis_namespace)))
     pipe_conn.close()
 
 ###############################################################################

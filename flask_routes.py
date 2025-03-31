@@ -246,13 +246,13 @@ def get_analysis():
             elif model_name == "claude":
                 logger.info("Using model: Claude 3.7 Sonnet (Note: Best responses)")
             elif model_name == "gemini":
-                logger.info("Using model: Gemini 2.5 Pro (Note: Experimental)")
+                logger.info("Using model: Gemini 2.5 Pro (Note: Free but limited token rate)")
             elif model_name == "4o":
                 logger.info("Using model: GPT-4o (Note: Cheapest per token)")
         else:
-            model_name = "4o"
+            model_name = "gemini"
             client = get_client(model_name)
-            logger.info("Using default model: GPT-4o")
+            logger.info("Using default model: Gemini 2.5 Pro")
         
         # Build prompt and call LLM
         prompt = build_llm_prompt(conversation_history)
@@ -327,6 +327,7 @@ def execute_code():
     global conversation_history
     global active_executions
     global execution_results
+    global analysis_namespace
     
     code = request.json.get('code', '')
     summary = request.json.get('summary', '')
@@ -393,7 +394,10 @@ def execute_code():
         try:
             # Wait for results with a timeout
             if parent_conn.poll(600.0):  # 600 second timeout
-                output_text, figures, _, had_error = parent_conn.recv()
+                output_text, figures, _, had_error, new_namespace = parent_conn.recv()
+
+                # Update analysis namespace
+                analysis_namespace.update(dill.loads(new_namespace))
                 
                 # Check if execution was terminated
                 if output_text == "TERMINATED":
@@ -699,7 +703,7 @@ def send_feedback():
         if os.getenv('MODEL', default=None):
             client = get_client(os.environ.get('MODEL'))
         else:
-            client = get_client("4o")
+            client = get_client("gemini")
         
         prompt = build_llm_prompt(conversation_history)
         llm_response = call_llm_and_parse(client, prompt)
