@@ -595,6 +595,7 @@
             let codeExecutionInProgress = false;
             let executionId = null;
             let expandedCodeBlocks = [];
+            let isInit = false;
 
             let scrollingState = {
                 active: false, // Whether user is actively scrolling in any window
@@ -666,7 +667,7 @@
             }
 
             $(document).ready(function() {
-                // Initialize scroll tracking
+                // init scroll tracking
                 setupScrollTracking();
                 
                 // Update the history refresh interval to use our new scroll system
@@ -732,32 +733,55 @@
                 }
             });
 
-            // Modified initialize dataset function
+            // Initialise dataset function
             $('#initialize-btn').click(function () {
+                const $button = $(this); // Cache the button element
+
+                if (isInit) {
+                    // If already initialized, it's the "Restart" button
+                    if (!confirm("Are you sure you want to restart? This will clear the current analysis, data, and conversation history.")) {
+                        return; // User cancelled the confirmation
+                    }
+                    // If confirmed, proceed with re-initialization (reset state visually if needed)
+                    console.log("Restarting initialisation...");
+                    // Optional: Visually reset parts of the UI immediately if desired,
+                    // though the AJAX success/error will handle the main updates.
+                    // Example: $('#summary-section, #code-section, #feedback-section, #output-section').hide();
+                } else {
+                    console.log("Starting initial initialisation...");
+                }
+
+                // --- Call the actual initialization logic ---
+                performInitialization($button);
+            });
+
+            function performInitialization($button) {
                 $('.loading').show();
+                $('#summary-section, #code-section, #feedback-section, #output-section').hide(); // Hide current analysis during init
+                $('#figures-container').empty();
 
-                // Create a FormData object to handle file uploads
+                // Reset relevant history displays immediately for better UX during restart
+                $('#text-history').empty().append('<p>Initialising...</p>');
+                $('#figure-history').empty();
+                $('#code-history').empty();
+                $('#output-history').empty();
+
                 const formData = new FormData();
-
-                // Add data source type
                 const dataSource = $('input[name="dataSource"]:checked').val();
                 formData.append('dataSource', dataSource);
 
-                // Add custom files if selected
-                if (dataSource === 'custom' && selectedFiles.length > 0) {
-                    // Append each file with a unique key (dataFile_0, dataFile_1, etc.)
+                if (dataSource === 'custom') {
+                    if (selectedFiles.length === 0) {
+                        alert('Please select at least one file to upload for custom data.');
+                        $('.loading').hide();
+                        return; // Stop if custom data selected but no files
+                    }
                     selectedFiles.forEach((file, index) => {
                         formData.append(`dataFile_${index}`, file);
                     });
-                    // Also add the file count for server-side processing
                     formData.append('fileCount', selectedFiles.length);
-                } else if (dataSource === 'custom' && selectedFiles.length === 0) {
-                    alert('Please select at least one file to upload');
-                    $('.loading').hide();
-                    return;
                 }
 
-                // Add custom prompt if specified
                 if ($('#useCustomPrompt').is(':checked')) {
                     const customPrompt = $('#customPromptText').val().trim();
                     if (customPrompt) {
@@ -765,71 +789,111 @@
                     }
                 }
 
+                // First AJAX call: Initialize
                 $.ajax({
                     url: '/initialize',
                     type: 'POST',
                     data: formData,
-                    processData: false,  // Important for FormData
-                    contentType: false,  // Important for FormData
-                    success: function (response) {
-                        alert(response.message);
-                        // Clear conversation history
+                    processData: false,
+                    contentType: false,
+                    success: function (initResponse) {
+                        // Don't alert here, wait for the analysis part
+                        console.log("Dataset initialized successfully:", initResponse.message);
+
+                        // Clear old history (backend should handle this, but belt-and-suspenders)
                         $('#text-history').empty();
                         $('#figure-history').empty();
                         $('#code-history').empty();
                         $('#output-history').empty();
-                        // Clear current analysis
-                        $('#summary-section, #code-section, #feedback-section, #output-section').hide();
-                        $('#figures-container').empty();
-                        console.log("Dataset initialised successfully");
-                        console.log("Getting first analysis...");
 
-                        // Keep loading indicator visible
+                        // Keep loading indicator, get the first analysis
                         $.ajax({
                             url: '/get_analysis',
                             type: 'GET',
-                            success: function (response) {
+                            success: function (analysisResponse) {
                                 $('.loading').hide();
-                                console.log("Analysis response:", response);
+                                console.log("First analysis response:", analysisResponse);
 
-                                if (response.status === 'success') {
-                                    currentSummary = response.summary;
-                                    currentCode = response.code;
+                                if (analysisResponse.status === 'success') {
+                                    currentSummary = analysisResponse.summary;
+                                    currentCode = analysisResponse.code;
 
                                     // Display summary
-                                    $('#summary-content').html(markdownToHtml(response.summary));
+                                    $('#summary-content').html(markdownToHtml(analysisResponse.summary));
                                     $('#summary-section').show();
 
                                     // Display code
-                                    $('#code-content').text(response.code);
+                                    $('#code-content').text(analysisResponse.code);
                                     hljs.highlightElement(document.getElementById('code-content'));
                                     $('#code-section').show();
 
                                     // Show feedback section
                                     $('#feedback-section').show();
 
-                                    // Refresh conversation history after a short delay
-                                    setTimeout(refreshConversationHistory, 500);
-
                                     // Set button to execute state
                                     setButtonState('execute');
+
+                                    // --- >>> NEW LOGIC: Hide panel and change button <<< ---
+                                    if (!isInit) {
+                                        // Smoothly hide the data source selection panel
+                                        $('.data-source-selector').slideUp();
+
+                                        // Change the button to "Restart"
+                                        $button.text('Restart')
+                                            .removeClass('btn-primary')
+                                            .addClass('btn-danger')
+                                            .attr('title', 'Restart the analysis with new data/settings (clears history)'); // Update tooltip
+
+                                        isInit = true; // Set the flag
+                                    }
+
+                                    // Refresh conversation history after a short delay
+                                    // Use a slightly longer delay to ensure DOM is ready after updates
+                                    setTimeout(() => {
+                                        refreshConversationHistory();
+                                        scrollAllToBottom(); // Scroll after history is populated
+                                    }, 750);
+
+
                                 } else {
-                                    alert('Error: ' + response.message);
+                                    alert('Error getting initial analysis: ' + analysisResponse.message);
+                                    // If analysis fails, keep panel visible and button as "Initialise"
+                                    isInit = false;
+                                    $('.data-source-selector').slideDown(); // Ensure it's visible
+                                    $button.text('Initialise Dataset')
+                                            .removeClass('btn-danger')
+                                            .addClass('btn-primary')
+                                            .attr('title', '');
                                 }
                             },
-                            error: function (error) {
+                            error: function (analysisError) {
                                 $('.loading').hide();
-                                console.error("Analysis error:", error);
-                                alert('Error getting analysis: ' + (error.responseJSON ? error.responseJSON.message : 'Unknown error'));
+                                console.error("Initial analysis error:", analysisError);
+                                alert('Error getting initial analysis: ' + (analysisError.responseJSON ? analysisError.responseJSON.message : 'Unknown error'));
+                                // Keep panel and button in initial state on error
+                                isInit = false;
+                                $('.data-source-selector').slideDown();
+                                $button.text('Initialise Dataset')
+                                        .removeClass('btn-danger')
+                                        .addClass('btn-primary')
+                                        .attr('title', '');
                             }
                         });
                     },
-                    error: function (error) {
+                    error: function (initError) {
                         $('.loading').hide();
-                        alert('Error initializing data: ' + (error.responseJSON ? error.responseJSON.message : 'Unknown error'));
+                        console.error("Initialisation error:", initError);
+                        // alert('Error initialising data: ' + (initError.responseJSON ? initError.responseJSON.message : 'Unknown error'));
+                        // Ensure button and panel are in initial state on error
+                        isInit = false;
+                        $('.data-source-selector').slideDown();
+                        $button.text('Initialise Dataset')
+                                .removeClass('btn-danger')
+                                .addClass('btn-primary')
+                                .attr('title', '');
                     }
                 });
-            });
+            }
 
             // Create the modal container for fullscreen images
             $(document).ready(function () {
@@ -1181,7 +1245,7 @@
 
             function getNextAnalysis() {
                 $('.loading').show();
-                $('#summary-section, #code-section, #feedback-section, #output-section').hide();
+                $('#code-section, #feedback-section, #output-section').hide();
                 $('#figures-container').empty();
 
                 // Reset scrolling state to ensure auto-scroll to bottom for new analysis
@@ -1257,7 +1321,7 @@
                         $('#feedback-input').val('');
 
                         // Hide sections during transition
-                        $('#summary-section, #code-section, #feedback-section, #output-section').hide();
+                        $('#code-section, #feedback-section, #output-section').hide();
                         $('#figures-container').empty();
 
                         // First refresh conversation history
@@ -1350,7 +1414,7 @@
             // Update Get Analysis button handler to include history refresh
             $('#get-analysis-btn').click(function () {
                 $('.loading').show();
-                $('#summary-section, #code-section, #feedback-section, #output-section').hide();
+                $('#code-section, #feedback-section, #output-section').hide();
                 $('#figures-container').empty();
 
                 $.ajax({
@@ -1581,9 +1645,6 @@
                 });
             }
             
-            codeWindow.querySelectorAll('code').forEach((block) => {
-                hljs.highlightElement(block);
-            });
             // Logging middleware for debugging
             $(document).ajaxSend(function (event, jqxhr, settings) {
                 console.log("Ajax request:", settings.type, settings.url);
