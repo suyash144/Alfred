@@ -1,12 +1,9 @@
 import numpy as np
-from utils import analysis_namespace, conversation_history
-
 
 ###############################################################################
 # Initialize example data
 ###############################################################################
 def initialize_data():
-    global conversation_history
     global analysis_namespace
     
     c1 = [[1, 0.8, 0],
@@ -27,5 +24,4 @@ def initialize_data():
     data_inventory = "Available data variables:\n"
     data_inventory += f"- x: {x.shape}\n"
     
-    analysis_namespace["x"] = x
-    return "Data initialised successfully", data_inventory
+    return x, data_inventory

@@ -14,22 +14,17 @@ from data_loader import *
 # Flask routes
 ###############################################################################
 app = Flask(__name__)
-# app.state = AppState()
+app.state = AppState()
 
 logger.info("Click here to run Alfred: http://localhost:5000")
 
-# Global variables
-active_executions = {}
-execution_results = {}
-iteration_count = 0
 
 @app.route('/')
 def index():
     """Render the main index page"""
-    global conversation_history
     # Format conversation history for display
     formatted_history = []
-    for entry in conversation_history:
+    for entry in app.state.conversation_history:
         role = entry.get("role", "")
         content = entry.get("content", "")
 
@@ -55,6 +50,8 @@ def index():
                 "iteration": entry.get("iteration", 0),
                 "content": content
             })
+
+    conversation_history = app.state.conversation_history
     
     return render_template('index.html', 
                           conversation_history=formatted_history)
@@ -62,11 +59,9 @@ def index():
 @app.route('/initialize', methods=['POST'])
 def init_data():
     """Initialize dataset either with auto-generated data or user uploaded files"""
-    global conversation_history
-    global iteration_count
 
-    conversation_history = []
-    iteration_count = 0
+    app.state.conversation_history = []
+    app.state.iteration_count = 0
     
     if not os.getenv('API_KEY'):
         logger.error("API_KEY not found in environment variables")
@@ -81,14 +76,15 @@ def init_data():
     
     if data_source == 'auto':
         # Use the default auto-generated data
-        result, data_inv = initialize_data()
-        conversation_history.append({
+        data, data_inv = initialize_data()
+        app.state.analysis_namespace['x'] = data
+        app.state.conversation_history.append({
             "role": "assistant",
             "type": "text",
-            "iteration": iteration_count,
+            "iteration": app.state.iteration_count,
             "content": data_inv
         })
-        return jsonify({"status": "success", "message": result})
+        return jsonify({"status": "success", "message": "Data initialised successfully"})
     
     elif data_source == 'custom':
         # Handle custom data upload
@@ -137,10 +133,10 @@ def init_data():
         if custom_prompt:
             logger.info("Custom prompt provided")
             # Add the custom prompt as the first user prompt.
-            conversation_history.append({
+            app.state.conversation_history.append({
                 "role": "user",
                 "type": "text",
-                "iteration": iteration_count,
+                "iteration": app.state.iteration_count,
                 "content": custom_prompt
             })
         
@@ -155,12 +151,10 @@ def init_data():
 
 def process_uploaded_files(file_info):
     """Process uploaded files and store them in the analysis_namespace"""
-    global conversation_history
-    global analysis_namespace
     
     # Clear any existing 'x' data to avoid confusion
-    if 'x' in analysis_namespace:
-        del analysis_namespace['x']
+    if 'x' in app.state.analysis_namespace:
+        del app.state.analysis_namespace['x']
     
     processed_files = []
     
@@ -174,7 +168,7 @@ def process_uploaded_files(file_info):
                 # Load CSV file into a pandas DataFrame
                 df = pd.read_csv(file_path)
                 var_name = f'df_{base_name}'
-                analysis_namespace[var_name] = df
+                app.state.analysis_namespace[var_name] = df
                 processed_files.append((var_name, f"DataFrame with shape {df.shape}"))
                 logger.info(f"Loaded CSV file: {file_path} as {var_name}")
                 
@@ -182,7 +176,7 @@ def process_uploaded_files(file_info):
                 # Load NumPy array
                 arr = np.load(file_path)
                 var_name = f'arr_{base_name}'
-                analysis_namespace[var_name] = arr
+                app.state.analysis_namespace[var_name] = arr
                 processed_files.append((var_name, f"NumPy array with shape {arr.shape}"))
                 logger.info(f"Loaded NumPy file: {file_path} as {var_name}")
 
@@ -190,7 +184,7 @@ def process_uploaded_files(file_info):
                 with open(file_path) as f:
                     jsonfile = json.load(f)
                 var_name = f'json_{base_name}'
-                analysis_namespace[var_name] = jsonfile
+                app.state.analysis_namespace[var_name] = jsonfile
                 if type(jsonfile) is list:
                     processed_files.append((var_name, f"List from JSON file"))
                 elif type(jsonfile) is dict:
@@ -209,10 +203,10 @@ def process_uploaded_files(file_info):
         data_inventory += f"- {var_name}: {description}\n"
         
     # Add this inventory to the conversation history
-    conversation_history.append({
+    app.state.conversation_history.append({
         "role": "assistant",
         "type": "text",
-        "iteration": iteration_count,
+        "iteration": app.state.iteration_count,
         "content": data_inventory
     })
     
@@ -222,9 +216,7 @@ def process_uploaded_files(file_info):
 @app.route('/get_analysis', methods=['GET'])
 def get_analysis():
     """Get analysis from LLM based on conversation history"""
-    global conversation_history
-    global iteration_count
-    logger.info(f"Getting analysis with conversation history length: {len(conversation_history)}")
+    logger.info(f"Getting analysis with conversation history length: {len(app.state.conversation_history)}")
 
     try:
         # Get the appropriate client based on model specified in environment
@@ -245,17 +237,17 @@ def get_analysis():
             logger.info("Using default model: Gemini 2.5 Pro")
         
         # Build prompt and call LLM
-        prompt = build_llm_prompt(conversation_history)
+        prompt = build_llm_prompt(app.state.conversation_history)
         llm_response = call_llm_and_parse(client, prompt)
 
-        iteration_count += 1
+        app.state.iteration_count += 1
         
         logger.info(f"Successfully got analysis from {model_name}")
         return jsonify({
             "status": "success",
             "summary": llm_response.text_summary,
             "code": llm_response.python_code,
-            "conversation_length": len(conversation_history)
+            "conversation_length": len(app.state.conversation_history)
         })
     
     except Exception as e:
@@ -279,7 +271,7 @@ def get_analysis():
                     "status": "error",
                     "message": str(e)
                 })
-        else:                                                                # OpenAI API Error codes
+        elif model_name=="4o" or model_name=="o1":                                                                # OpenAI API Error codes
             if "429" in str(e):
                 logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
@@ -310,14 +302,41 @@ def get_analysis():
                     "status": "error",
                     "message": str(e)
                 })
+        else:
+            if "Error code: 429" in str(e):
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "API rate limit exceeded. Please try again later."
+                }), 429
+            elif "Error code: 500" in str(e):
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Error on Google's side. Could be because input context is too long."
+                }), 500
+            elif "Error code: 403" in str(e):
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "API key is incorrect or not authorised to access the Gemini API."
+                }), 403
+            elif "Error code: 503" in str(e):
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": "Gemini API is temporarily overloaded. Please try again later or switch to a different model."
+                }), 503
+            else:
+                logger.error(f"Error getting analysis: {str(e)}")
+                return jsonify({
+                    "status": "error",
+                    "message": str(e)
+                })
 
 @app.route('/execute_code', methods=['POST'])
 def execute_code():
     """Execute Python code in a separate process and capture outputs/figures"""
-    global conversation_history
-    global active_executions
-    global execution_results
-    global analysis_namespace
     
     code = request.json.get('code', '')
     summary = request.json.get('summary', '')
@@ -329,30 +348,30 @@ def execute_code():
     logger.info(f"Starting code execution with ID: {execution_id}")
     
     # First, add the summary and proposed code to conversation history
-    conversation_history.append({
+    app.state.conversation_history.append({
         "role": "assistant", 
         "type": "text",
-        "iteration": iteration_count,
+        "iteration": app.state.iteration_count,
         "content": summary
     })
     
-    conversation_history.append({
+    app.state.conversation_history.append({
         "role": "assistant",
         "type": "code",
-        "iteration": iteration_count,
+        "iteration": app.state.iteration_count,
         "content": "Proposed code:\n" + code
     })
     
     # Add execution record to history
-    conversation_history.append({
+    app.state.conversation_history.append({
         "role": "user",
         "type": "text",
-        "iteration": iteration_count,
+        "iteration": app.state.iteration_count,
         "content": "Execute code"
     })
     
     # Initialize result storage
-    execution_results[execution_id] = {
+    app.state.execution_results[execution_id] = {
         'status': 'running',
         'output': '',
         'figures': [],
@@ -366,11 +385,11 @@ def execute_code():
     # Create and start the process
     process = multiprocessing.Process(
         target=run_code_in_process,
-        args=(code, analysis_namespace, child_conn)
+        args=(code, app.state.analysis_namespace, child_conn)
     )
     
     # Store the process and connection for potential cancellation
-    active_executions[execution_id] = {
+    app.state.active_executions[execution_id] = {
         'process': process,
         'connection': parent_conn,
         'start_time': time.time()
@@ -387,14 +406,14 @@ def execute_code():
                 output_text, figures, _, had_error, new_namespace = parent_conn.recv()
 
                 # Update analysis namespace
-                analysis_namespace.update(dill.loads(new_namespace))
+                app.state.analysis_namespace.update(dill.loads(new_namespace))
                 
                 # Check if execution was terminated
                 if output_text == "TERMINATED":
                     logger.info(f"Execution {execution_id} was terminated")
-                    execution_results[execution_id]['status'] = 'cancelled'
-                    execution_results[execution_id]['output'] = "Execution was cancelled by user."
-                    execution_results[execution_id]['complete'] = True
+                    app.state.execution_results[execution_id]['status'] = 'cancelled'
+                    app.state.execution_results[execution_id]['output'] = "Execution was cancelled by user."
+                    app.state.execution_results[execution_id]['complete'] = True
                     return
                 
                 # Process figures if any
@@ -410,10 +429,10 @@ def execute_code():
                     title = fig._suptitle.get_text() if hasattr(fig, '_suptitle') and fig._suptitle else f"Figure {i+1}"
                     logger.info(f"Generated figure: {title}")
                     
-                    conversation_history.append({
+                    app.state.conversation_history.append({
                         "role": "figure",
                         "type": "figure",
-                        "iteration": iteration_count,
+                        "iteration": app.state.iteration_count,
                         "content": {
                             "type": "image_url",
                             "image_url": {
@@ -423,26 +442,26 @@ def execute_code():
                     })
                 
                 # Store the results for retrieval
-                execution_results[execution_id]['status'] = 'completed'
-                execution_results[execution_id]['output'] = output_text
-                execution_results[execution_id]['figures'] = figure_data
-                execution_results[execution_id]['error'] = had_error
-                execution_results[execution_id]['complete'] = True
+                app.state.execution_results[execution_id]['status'] = 'completed'
+                app.state.execution_results[execution_id]['output'] = output_text
+                app.state.execution_results[execution_id]['figures'] = figure_data
+                app.state.execution_results[execution_id]['error'] = had_error
+                app.state.execution_results[execution_id]['complete'] = True
                 
                 # Add output to conversation history if it exists
                 if had_error:
                     logger.warning(f"Execution {execution_id} resulted in error")
-                    conversation_history.append({
+                    app.state.conversation_history.append({
                         "role": "assistant",
                         "type": "output",
-                        "iteration": iteration_count,
+                        "iteration": app.state.iteration_count,
                         "content": "Error while running code:\n" + output_text
                     })
                 elif output_text.strip():
-                    conversation_history.append({
+                    app.state.conversation_history.append({
                         "role": "assistant",
                         "type": "output",
-                        "iteration": iteration_count,
+                        "iteration": app.state.iteration_count,
                         "content": "Code Output:\n" + output_text
                     })
                 
@@ -451,38 +470,38 @@ def execute_code():
                 logger.warning(f"Execution {execution_id} timed out")
                 output_text = "Execution timed out after 5 minutes. Consider optimizing your code or using smaller datasets."
                 
-                execution_results[execution_id]['status'] = 'timeout'
-                execution_results[execution_id]['output'] = output_text
-                execution_results[execution_id]['error'] = True
-                execution_results[execution_id]['complete'] = True
+                app.state.execution_results[execution_id]['status'] = 'timeout'
+                app.state.execution_results[execution_id]['output'] = output_text
+                app.state.execution_results[execution_id]['error'] = True
+                app.state.execution_results[execution_id]['complete'] = True
                 
-                conversation_history.append({
+                app.state.conversation_history.append({
                     "role": "assistant",
                     "type": "output",
-                    "iteration": iteration_count,
+                    "iteration": app.state.iteration_count,
                     "content": "Execution timed out:\n" + output_text
                 })
         except Exception as e:
             logger.error(f"Error processing execution results: {str(e)}")
             output_text = f"Error during execution: {str(e)}"
             
-            execution_results[execution_id]['status'] = 'error'
-            execution_results[execution_id]['output'] = output_text
-            execution_results[execution_id]['error'] = True
-            execution_results[execution_id]['complete'] = True
+            app.state.execution_results[execution_id]['status'] = 'error'
+            app.state.execution_results[execution_id]['output'] = output_text
+            app.state.execution_results[execution_id]['error'] = True
+            app.state.execution_results[execution_id]['complete'] = True
             
-            conversation_history.append({
+            app.state.conversation_history.append({
                 "role": "assistant",
                 "type": "output",
-                "iteration": iteration_count,
+                "iteration": app.state.iteration_count,
                 "content": f"Execution error:\n{output_text}"
             })
         finally:
             # Clean up the process
-            if execution_id in active_executions:
-                if active_executions[execution_id]['process'].is_alive():
-                    active_executions[execution_id]['process'].terminate()
-                del active_executions[execution_id]
+            if execution_id in app.state.active_executions:
+                if app.state.active_executions[execution_id]['process'].is_alive():
+                    app.state.active_executions[execution_id]['process'].terminate()
+                del app.state.active_executions[execution_id]
     
     # Start background thread for monitoring
     thread = threading.Thread(target=process_execution_results)
@@ -499,15 +518,14 @@ def execute_code():
 @app.route('/execution_results/<execution_id>', methods=['GET'])
 def get_execution_results(execution_id):
     """Get the results of a code execution"""
-    global execution_results
     
-    if execution_id not in execution_results:
+    if execution_id not in app.state.execution_results:
         return jsonify({
             "status": "not_found",
             "message": "No results found for this execution ID"
         }), 404
     
-    result = execution_results[execution_id]
+    result = app.state.execution_results[execution_id]
     
     # If execution is complete, we can clean up the results data after sending
     if result['complete'] and result['status'] != 'running':
@@ -515,11 +533,11 @@ def get_execution_results(execution_id):
         response_data = dict(result)
         
         # Clean up old results periodically (keep the last few)
-        all_executions = list(execution_results.keys())
+        all_executions = list(app.state.execution_results.keys())
         if len(all_executions) > 10:  # Keep only last 10 results
             oldest = all_executions[0]
             if oldest != execution_id:  # Don't delete what we're returning
-                del execution_results[oldest]
+                del app.state.execution_results[oldest]
         
         return jsonify({
             "status": result['status'],
@@ -537,12 +555,10 @@ def get_execution_results(execution_id):
 @app.route('/stop_execution', methods=['POST'])
 def stop_execution():
     """Stop a running code execution"""
-    global active_executions
-    global execution_results
     
     execution_id = request.json.get('execution_id')
     
-    if not execution_id or execution_id not in active_executions:
+    if not execution_id or execution_id not in app.state.active_executions:
         logger.warning(f"Attempt to stop non-existent execution: {execution_id}")
         return jsonify({
             "status": "error",
@@ -553,14 +569,14 @@ def stop_execution():
     
     try:
         # Get the process
-        execution = active_executions[execution_id]
+        execution = app.state.active_executions[execution_id]
         process = execution['process']
         
         # Update execution result status
-        if execution_id in execution_results:
-            execution_results[execution_id]['status'] = 'cancelled'
-            execution_results[execution_id]['output'] = "Execution was cancelled by user."
-            execution_results[execution_id]['complete'] = True
+        if execution_id in app.state.execution_results:
+            app.state.execution_results[execution_id]['status'] = 'cancelled'
+            app.state.execution_results[execution_id]['output'] = "Execution was cancelled by user."
+            app.state.execution_results[execution_id]['complete'] = True
         
         # Terminate the process if it's still running
         if process.is_alive():
@@ -573,15 +589,15 @@ def stop_execution():
                 os.kill(process.pid, signal.SIGKILL)
         
         # Add to conversation history
-        conversation_history.append({
+        app.state.conversation_history.append({
             "role": "assistant",
             "type": "output",
-            "iteration": iteration_count,
+            "iteration": app.state.iteration_count,
             "content": "Code execution was cancelled by user."
         })
         
         # Clean up
-        del active_executions[execution_id]
+        del app.state.active_executions[execution_id]
         
         return jsonify({
             "status": "cancelled",
@@ -598,13 +614,12 @@ def stop_execution():
 @app.route('/debug/history', methods=['GET'])
 def debug_history():
     """Debug endpoint to get the full conversation history"""
-    global conversation_history
     
-    logger.debug(f"Debug History Endpoint - History length: {len(conversation_history)}")
+    logger.debug(f"Debug History Endpoint - History length: {len(app.state.conversation_history)}")
     
     # Format conversation history for JSON response
     formatted_history = []
-    for entry in conversation_history:
+    for entry in app.state.conversation_history:
         role = entry.get("role", "")
         content = entry.get("content", "")
         type = entry.get("type", "text")
@@ -649,44 +664,42 @@ def debug_history():
             })
     
     return jsonify({
-        "history_length": len(conversation_history),
+        "history_length": len(app.state.conversation_history),
         "history": formatted_history
     })
 
 @app.route('/send_feedback', methods=['POST'])
 def send_feedback():
     """Send user feedback and get next analysis"""
-    global conversation_history
-    global iteration_count
 
     feedback = request.json.get('feedback', '')
     summary = request.json.get('summary', '')
     code = request.json.get('code', '')
-    iter = request.json.get('iteration', 0)
+    iter = app.state.iteration_count
     
-    logger.info(f"Feedback route - Current history length: {len(conversation_history)}")
+    logger.info(f"Feedback route - Current history length: {len(app.state.conversation_history)}")
     
     # Add to conversation history
-    conversation_history.append({
+    app.state.conversation_history.append({
         "role": "assistant",
         "type": "text",
         "iteration": iter,
         "content": summary
     })
-    conversation_history.append({
+    app.state.conversation_history.append({
         "role": "assistant",
         "type": "code",
         "iteration": iter,
         "content": "Proposed code:\n" + code
     })
-    conversation_history.append({
+    app.state.conversation_history.append({
         "role": "user",
         "type": "text",
         "iteration": iter,
         "content": feedback
     })
     
-    logger.debug(f"Feedback route - Updated history length: {len(conversation_history)}")
+    logger.debug(f"Feedback route - Updated history length: {len(app.state.conversation_history)}")
     
     # Now automatically get the next analysis
     try:
@@ -695,17 +708,17 @@ def send_feedback():
         else:
             client = get_client("gemini")
         
-        prompt = build_llm_prompt(conversation_history)
+        prompt = build_llm_prompt(app.state.conversation_history)
         llm_response = call_llm_and_parse(client, prompt)
 
-        iteration_count += 1
+        app.state.iteration_count += 1
         
         logger.info("Successfully got next analysis after feedback")
         
         # Return both the success status and the new analysis
         return jsonify({
             "status": "success", 
-            "history_length": len(conversation_history),
+            "history_length": len(app.state.conversation_history),
             "next_analysis": {
                 "summary": llm_response.text_summary,
                 "code": llm_response.python_code
@@ -716,6 +729,6 @@ def send_feedback():
         # If there's an error getting the next analysis, still return success for the feedback
         return jsonify({
             "status": "success", 
-            "history_length": len(conversation_history),
+            "history_length": len(app.state.conversation_history),
             "error": str(e)
         })

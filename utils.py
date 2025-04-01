@@ -34,16 +34,6 @@ elif os.environ.get('MODEL')=='gemini':
 else:
     MODEL_NAME = "gemini-2.5-pro-exp-03-25"
 
-###############################################################################
-# Global analysis namespace for executed code (retains state across iterations)
-###############################################################################
-analysis_namespace = {}
-
-###############################################################################
-# Global conversation history
-###############################################################################
-conversation_history = []
-
 ALLOWED_EXTENSIONS = {'csv', 'npy', 'json'}
 
 SYSTEM_PROMPT = (
