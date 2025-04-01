@@ -44,6 +44,7 @@ analysis_namespace = {}
 ###############################################################################
 conversation_history = []
 
+ALLOWED_EXTENSIONS = {'csv', 'npy', 'json'}
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant designed to perform iterative exploratory data analysis. "
@@ -86,6 +87,20 @@ NOW_CONTINUE_TEXT = (
     "Now continue with a new step: Summarize what is known so far about the data, "
     "propose 5 or so working hypotheses, and suggest code for a single analysis step."
 )
+
+
+class AppState:
+    """
+    Centralized container for application state.
+    """
+    def __init__(self):
+        # State variables that were previously globals
+        self.conversation_history = []
+        self.active_executions = {}
+        self.execution_results = {}
+        self.iteration_count = 0
+        self.analysis_namespace = {}
+
 
 ###############################################################################
 # Pydantic model for the LLM's structured output
@@ -578,3 +593,12 @@ def fig_to_base64(fig):
     buf.seek(0)
     img_str = base64.b64encode(buf.read()).decode('utf-8')
     return img_str
+
+###############################################################################
+# Check if filename is allowed
+###############################################################################
+def allowed_file(filename):
+    """Check if a filename has an allowed extension"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+

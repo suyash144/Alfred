@@ -14,24 +14,14 @@ from data_loader import *
 # Flask routes
 ###############################################################################
 app = Flask(__name__)
+# app.state = AppState()
 
 logger.info("Click here to run Alfred: http://localhost:5000")
-
-# Configure upload settings
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'csv', 'npy', 'json'}
 
 # Global variables
 active_executions = {}
 execution_results = {}
 iteration_count = 0
-
-# Ensure upload directory exists
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-def allowed_file(filename):
-    """Check if a filename has an allowed extension"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/')
 def index():
@@ -122,7 +112,7 @@ def init_data():
                 filename = secure_filename(file.filename)
                 
                 # Create a temporary file path
-                file_path = os.path.join(UPLOAD_FOLDER, filename)
+                file_path = os.path.join('uploads', filename)
                 file.save(file_path)
                 
                 uploaded_files.append(file_path)
