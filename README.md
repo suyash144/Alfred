@@ -1,8 +1,9 @@
 ﻿# Alfred
+![image](https://github.com/user-attachments/assets/28cc3f43-9ad9-466e-bf63-ba1242296da1)
+
+
 
 A simple Python and Docker-based app for iterative data analysis using an LLM.
-
-Alfred is Automatic LLM For Research and Exploring Data
 
 ### Usage
 
@@ -19,7 +20,7 @@ Set the model as follows:
 
     set MODEL=MODEL-NAME
 
-Otherwise, GPT-4o will be used. You can reset to 4o by setting MODEL=4o. Make sure you set the correct API key for the model you want to use. Then run
+Otherwise, Gemini 2.5 Pro will be used as it is currently free. Make sure you set the correct API key for the model you want to use. Then run
  
     docker-compose up --build
 
