@@ -1,8 +1,9 @@
 ﻿# Alfred
+![image](https://github.com/user-attachments/assets/28cc3f43-9ad9-466e-bf63-ba1242296da1)
+
+
 
 A simple Python and Docker-based app for iterative data analysis using an LLM.
-
-Alfred is Automatic LLM For Research and Exploring Data
 
 ### Usage
 
