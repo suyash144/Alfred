@@ -12,13 +12,13 @@ SYSTEM_PROMPT = (
     
     "\n2. ## Current understanding of data"
     "\n   - Summarize your updated understanding of the data"
-    "\n   - Focus only on new information that wasn't known before"
+    "\n   - Focus on new information that wasn't known before"
     "\n   - Include distributions, relationships, or important features"
     
     "\n3. ## Open questions"
     "\n   - List any unresolved questions or aspects that need further investigation"
     "\n   - Include hypotheses that need testing"
-    "\n   - Only include questions that can be resolved by analysis of the current data"
+    "\n   - Only include questions that could be resolved by analysis of the currently available data"
     
     "\n4. ## Proposed next analysis"
     "\n   - Describe the specific analysis you're proposing next"
@@ -32,13 +32,14 @@ SYSTEM_PROMPT = (
     "Ensure that each import statement is followed by a line break."
     "Set the plot style using seaborn rather than matplotlib. Output figures to stdout using plt.show(). Do not save figures."
     "The data for analysis is stored in some variables, the names of which will be provided."
-    "Use only the data provided. Do not simulate hypothetical data to act as a placeholder for real data."
-    "Do not waste time checking which variables are available. If you define a new variable, it will be accessible in future iterations."
+    "Use only the data provided. Do not simulate hypothetical data to act as a placeholder for data that was not provided."
+    "Do not waste time checking which variables are available."
+    "If you define a new variable, it will be accessible in future iterations."
 )
 
 # This is the fixed part of the user prompt appended at the end of conversation history
 NOW_CONTINUE_TEXT = (
     "Now continue with a new step: Summarize what is known so far about the data, "
-    "propose 5 or so working hypotheses, and suggest code for a single analysis step."
+    "propose 5 or so open questions, and suggest code for a single analysis step."
 )
 
