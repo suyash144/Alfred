@@ -721,6 +721,7 @@
                 }
             });
 
+            // Handle custom prompt file upload
             $('#promptFile').change(function(e) {
                 const file = e.target.files[0];
                 if (file && file.type === "text/plain") {
@@ -930,6 +931,7 @@
                                     alert('Error getting initial analysis: ' + analysisResponse.message);
                                     // If analysis fails, keep panel visible and button as "Initialise"
                                     isInit = false;
+
                                     $('.data-source-selector').slideDown(); // Ensure it's visible
                                     $button.text('Initialise Dataset')
                                             .removeClass('btn-danger')
@@ -954,7 +956,7 @@
                     error: function (initError) {
                         $('.loading').hide();
                         console.error("Initialisation error:", initError);
-                        // alert('Error initialising data: ' + (initError.responseJSON ? initError.responseJSON.message : 'Unknown error'));
+                        alert('Error initialising data: ' + (initError.responseJSON ? initError.responseJSON.message : 'Unknown error'));
                         // Ensure button and panel are in initial state on error
                         isInit = false;
                         $('.data-source-selector').slideDown();
@@ -1369,6 +1371,7 @@
                         
                         // Make sure critical sections stay visible
                         $('#summary-section').show();
+                        $('#code-section').show();
                         $('#feedback-section').show();
                         
                         // If we have any previous content, ensure it's still displayed
@@ -1538,6 +1541,21 @@
                         $('.loading').hide();
                         console.error("Analysis error:", error);
                         alert('Error getting analysis: ' + error.responseJSON ? error.responseJSON.message : 'Unknown error');
+                        
+                        // Keep the Get Next Analysis button visible
+                        if (buttonState !== 'analyze') {
+                            setButtonState('analyze');
+                        }
+                        
+                        // Make sure critical sections stay visible
+                        $('#summary-section').show();
+                        $('#code-section').show();
+                        $('#feedback-section').show();
+                        
+                        // If we have any previous content, ensure it's still displayed
+                        if (currentSummary) {
+                            $('#summary-content').html(markdownToHtml(currentSummary));
+                        }
                     }
                 });
             });
