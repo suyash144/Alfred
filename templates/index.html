@@ -484,11 +484,32 @@
                 </div>
                 <div id="customPromptSection" style="display: none;">
                     <div class="mb-3">
-                        <label for="customPromptText" class="form-label">Enter your custom prompt</label>
-                        <textarea class="form-control" id="customPromptText" rows="4"
-                            placeholder="Give an initial description of your data and what you would like to find out."></textarea>
-                        <div class="form-text">Your custom prompt will be added to the default analysis instruction.
+                        <ul class="nav nav-tabs" id="promptInputTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="type-prompt-tab" data-bs-toggle="tab" data-bs-target="#type-prompt" type="button" role="tab" aria-controls="type-prompt" aria-selected="true">Type Prompt</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="upload-prompt-tab" data-bs-toggle="tab" data-bs-target="#upload-prompt" type="button" role="tab" aria-controls="upload-prompt" aria-selected="false">Upload Prompt File</button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content pt-3" id="promptInputTabContent">
+                            <div class="tab-pane fade show active" id="type-prompt" role="tabpanel" aria-labelledby="type-prompt-tab">
+                                <textarea class="form-control" id="customPromptText" rows="4"
+                                    placeholder="Give an initial description of your data and what you would like to find out."></textarea>
+                            </div>
+                            <div class="tab-pane fade" id="upload-prompt" role="tabpanel" aria-labelledby="upload-prompt-tab">
+                                <div class="mb-3">
+                                    <input class="form-control" type="file" id="promptFile" accept=".txt">
+                                    <div class="form-text mt-2">Upload a .txt file containing your custom prompt.</div>
+                                    <div id="uploadedPromptPreview" class="mt-3 p-2 border rounded bg-light" style="display: none;">
+                                        <h6 class="mb-1">Prompt Preview:</h6>
+                                        <div id="promptPreviewContent" class="text-muted small"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                        <div class="form-text mt-1">Your custom prompt will be added to the default analysis instruction.</div>
                     </div>
                 </div>
             </div>
@@ -700,6 +721,27 @@
                 }
             });
 
+            $('#promptFile').change(function(e) {
+                const file = e.target.files[0];
+                if (file && file.type === "text/plain") {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const content = event.target.result;
+                        // Store the content in a variable to use during initialization
+                        window.uploadedPromptContent = content;
+                        
+                        // Show a preview of the uploaded prompt text
+                        $('#promptPreviewContent').text(content.length > 200 ? content.substring(0, 200) + '...' : content);
+                        $('#uploadedPromptPreview').show();
+                    };
+                    reader.readAsText(file);
+                } else {
+                    alert('Please select a valid .txt file.');
+                    $(this).val(''); // Clear the input
+                    $('#uploadedPromptPreview').hide();
+                }
+            });
+
             // Handle multiple file selection
             $('#dataFile').change(function (e) {
                 const files = e.target.files;
@@ -802,7 +844,17 @@
                 }
 
                 if ($('#useCustomPrompt').is(':checked')) {
-                    const customPrompt = $('#customPromptText').val().trim();
+                    let customPrompt = '';
+                    
+                    // Check which tab is active to determine the prompt source
+                    if ($('#type-prompt-tab').hasClass('active')) {
+                        // Get prompt from text area
+                        customPrompt = $('#customPromptText').val().trim();
+                    } else {
+                        // Get prompt from uploaded file
+                        customPrompt = window.uploadedPromptContent || '';
+                    }
+                    
                     if (customPrompt) {
                         formData.append('customPrompt', customPrompt);
                     }
