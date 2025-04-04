@@ -716,7 +716,7 @@ def send_feedback():
         client = get_client(model_name, app.state.api_key)
     
         prompt = build_llm_prompt(app.state.conversation_history, app.state.MODEL_NAME)
-        llm_response = call_llm_and_parse(client, prompt, model_name=app.state.MODEL_NAME)
+        llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=app.state.MODEL_NAME)
 
         app.state.iteration_count += 1
         

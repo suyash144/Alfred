@@ -526,7 +526,7 @@ def get_client(model_name, api_key=None):
         raise ValueError("Invalid model name - choose 4o, o1, gemini or claude")
 
 ###############################################################################
-# Functions to get API key from environment variables
+# Function to get API key from environment variables
 ###############################################################################
 def get_api_key(model):
     if model == "claude":
@@ -537,7 +537,6 @@ def get_api_key(model):
         return os.environ.get('API_KEY_OAI', None)
     else:
         return None
-
 
 ###############################################################################
 # Function to convert matplotlib figure to base64 for web display
