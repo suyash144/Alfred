@@ -7,6 +7,7 @@
     <title>Alfred</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         .code-block {
             background-color: #f7f7f7;
@@ -416,6 +417,21 @@
             display: none;
         }
 
+        #save-analysis-btn {
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        #save-analysis-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        #save-status {
+            height: 24px;
+            font-weight: 500;
+        }
+
         /* Custom animation for the download button when clicked */
         @keyframes pulse {
             0% {
@@ -621,6 +637,15 @@
                 <div id="figures-container">
                     <!-- Figures will be displayed here -->
                 </div>
+            </div>
+        </div>
+
+        <div class="row mt-5 mb-4">
+            <div class="col text-center">
+                <button id="save-analysis-btn" class="btn btn-primary btn-lg">
+                    <i class="bi bi-download me-2"></i>Save Complete Analysis
+                </button>
+                <div id="save-status" class="mt-2"></div>
             </div>
         </div>
     </div>
@@ -1785,6 +1810,107 @@
                 });
             }
             
+            // Handle Save Analysis button click
+            $('#save-analysis-btn').click(function() {
+                // Show loading status
+                $('#save-status').html('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Preparing files for download...');
+                
+                // Collect all history data
+                const historyData = {
+                    text: collectHistoryContent('text-history'),
+                    code: collectHistoryContent('code-history'),
+                    output: collectHistoryContent('output-history'),
+                    figures: collectFigures('figure-history')
+                };
+                
+                // Send to backend
+                $.ajax({
+                    url: '/save_analysis',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(historyData),
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            // Update status
+                            $('#save-status').html('<span class="text-success">✓ Analysis saved successfully!</span>');
+                            
+                            // Trigger download
+                            window.location.href = response.download_url;
+                            
+                            // Reset status after a delay
+                            setTimeout(function() {
+                                $('#save-status').html('');
+                            }, 5000);
+                        } else {
+                            $('#save-status').html('<span class="text-danger">Error: ' + response.message + '</span>');
+                        }
+                    },
+                    error: function(error) {
+                        $('#save-status').html('<span class="text-danger">Error saving analysis</span>');
+                        console.error('Error saving analysis:', error);
+                    }
+                });
+            });
+
+            // Function to collect content from a history panel
+            function collectHistoryContent(panelId) {
+                const items = [];
+                $(`#${panelId} .history-entry`).each(function() {
+                    const iteration = $(this).find('strong:contains("Iteration")').text().replace('Iteration ', '').replace(':', '');
+                    let role = '';
+                    
+                    if ($(this).hasClass('user')) {
+                        role = 'USER';
+                    } else if ($(this).hasClass('assistant')) {
+                        role = 'ASSISTANT';
+                    } else {
+                        role = $(this).find('strong').eq(1).text();
+                    }
+                    
+                    let content = '';
+                    
+                    // Handle different content types
+                    if (panelId === 'code-history') {
+                        // Get code content
+                        content = $(this).find('code').text();
+                    } else if (panelId === 'figure-history') {
+                        // Get figure src
+                        content = $(this).find('img').attr('src');
+                    } else {
+                        // Get text content
+                        content = $(this).find('div:last').html();
+                        // Clean up HTML tags if needed
+                        content = content.replace(/<br>/g, '\n');
+                    }
+                    
+                    items.push({
+                        iteration: iteration,
+                        role: role,
+                        content: content
+                    });
+                });
+                
+                return items;
+            }
+
+            // Function to collect figures
+            function collectFigures(panelId) {
+                const figures = [];
+                $(`#${panelId} .history-entry`).each(function() {
+                    const iteration = $(this).find('strong:contains("Iteration")').text().replace('Iteration ', '').replace(':', '');
+                    const imgSrc = $(this).find('img').attr('src');
+                    
+                    if (imgSrc) {
+                        figures.push({
+                            iteration: iteration,
+                            src: imgSrc
+                        });
+                    }
+                });
+                
+                return figures;
+            }
+
             // Logging middleware for debugging
             $(document).ajaxSend(function (event, jqxhr, settings) {
                 console.log("Ajax request:", settings.type, settings.url);

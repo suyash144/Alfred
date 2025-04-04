@@ -10,6 +10,7 @@ if __name__ == '__main__':
     os.makedirs('static', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
     os.makedirs('uploads', exist_ok=True)
+    os.makedirs('analyses', exist_ok=True)
     
     # Start Flask app
     app.run(host='0.0.0.0', port=5000, debug=False)
