@@ -508,7 +508,7 @@ def get_client(model_name, api_key=None):
     """Returns the appropriate client based on the model name"""
 
     if not api_key:
-        api_key = os.environ.get('API_KEY', None)
+        api_key = get_api_key(model_name)
         if not api_key:
             logger.error("No API key provided")
             raise ValueError("API_KEY is required")
@@ -524,6 +524,20 @@ def get_client(model_name, api_key=None):
     else:
         logger.error(f"Invalid model name: {model_name}")
         raise ValueError("Invalid model name - choose 4o, o1, gemini or claude")
+
+###############################################################################
+# Functions to get API key from environment variables
+###############################################################################
+def get_api_key(model):
+    if model == "claude":
+        return os.environ.get('API_KEY_ANT', None)
+    elif model == "gemini":
+        return os.environ.get('API_KEY_GEM', None)
+    elif model == "4o" or model == "o1":
+        return os.environ.get('API_KEY_OAI', None)
+    else:
+        return None
+
 
 ###############################################################################
 # Function to convert matplotlib figure to base64 for web display

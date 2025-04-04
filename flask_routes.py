@@ -68,12 +68,14 @@ def init_data():
     api_key = request.form.get('apiKey', '')
     model = request.form.get('model', 'gemini')
 
+    if not api_key:
+        api_key = get_api_key(model)
+        if not api_key:
+            logger.error("API key is required")
+            return jsonify({"status": "error", "message": "API key is required"}), 400
+    
     app.state.api_key = api_key
     app.state.model = model
-
-    if not api_key:
-        logger.error("API key is missing")
-        return jsonify({"status": "error", "message": "API key is required"}), 400
     
     # Check which data source is being used
     data_source = request.form.get('dataSource', 'auto')

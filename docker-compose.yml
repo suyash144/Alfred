@@ -7,5 +7,6 @@ services:
       - .:/app
     environment:
       - DEBUG=True
-      - API_KEY=${API_KEY}
-      - MODEL=${MODEL}
+      - API_KEY_ANT=${API_KEY_ANT}
+      - API_KEY_OAI=${API_KEY_OAI}
+      - API_KEY_GEM=${API_KEY_GEM}
