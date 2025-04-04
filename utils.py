@@ -24,17 +24,6 @@ logging.basicConfig(
 logger = logging.getLogger('alfred')
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
-if os.environ.get('MODEL')=="4o":
-    MODEL_NAME = "gpt-4o-2024-11-20"
-elif os.environ.get('MODEL')=="o1":
-    MODEL_NAME = "o1-2024-12-17"
-elif os.environ.get('MODEL')=="claude":
-    MODEL_NAME = "claude-3-7-sonnet-20250219"
-elif os.environ.get('MODEL')=='gemini':
-    MODEL_NAME = "gemini-2.5-pro-exp-03-25"
-else:
-    MODEL_NAME = "gemini-2.5-pro-exp-03-25"
-
 ALLOWED_EXTENSIONS = {'csv', 'npy', 'json'}
 
 
@@ -49,6 +38,9 @@ class AppState:
         self.execution_results = {}
         self.iteration_count = 0
         self.analysis_namespace = {}
+        self.api_key = None
+        self.model = "gemini"           # default model
+        self.MODEL_NAME = "gemini-2.5-pro-exp-03-25"
 
 
 ###############################################################################
@@ -70,7 +62,7 @@ def extract_base64_from_data_url(data_url):
 ###############################################################################
 # Build the prompt for the LLM
 ###############################################################################
-def build_llm_prompt(conversation_history):
+def build_llm_prompt(conversation_history, MODEL_NAME):
     """
     Build a prompt for the LLM, incorporating the current conversation history.
     For text entries, we maintain the existing format.
@@ -424,7 +416,7 @@ def safe_json_loads(json_str):
 ###############################################################################
 # Actual LLM call to parse response
 ###############################################################################
-def call_llm_and_parse(client, prompt, custom_system_prompt=None):
+def call_llm_and_parse(client, prompt, custom_system_prompt=None, MODEL_NAME = "gemini-2.5-pro-exp-03-25"):
     """
     Calls the LLM client to parse the response into LLMResponse
     using the JSON schema automatically.
@@ -512,13 +504,14 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
 ###############################################################################
 # Functions to get LLM clients
 ###############################################################################
-def get_client(model_name):
+def get_client(model_name, api_key=None):
     """Returns the appropriate client based on the model name"""
 
-    api_key = os.environ.get('API_KEY', None)
     if not api_key:
-        logger.error("API_KEY environment variable not set")
-        raise ValueError("API_KEY environment variable is required")
+        api_key = os.environ.get('API_KEY', None)
+        if not api_key:
+            logger.error("No API key provided")
+            raise ValueError("API_KEY is required")
     
     if model_name=="4o" or model_name=="o1":
         return openai.OpenAI(api_key=api_key)

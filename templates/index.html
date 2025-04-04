@@ -458,6 +458,28 @@
                 </label>
             </div>
 
+            <div class="api-config-container mt-3 mb-3 p-3 border rounded bg-light">
+                <h4>API Configuration</h4>
+                
+                <!-- API Key Input -->
+                <div class="mb-3">
+                    <label for="apiKey" class="form-label">API Key</label>
+                    <input type="password" class="form-control" id="apiKey" placeholder="Enter your API key">
+                    <div class="form-text">Your key is only stored in memory during this session and not saved.</div>
+                </div>
+                
+                <!-- Model Selection Dropdown -->
+                <div class="mb-3">
+                    <label for="modelSelect" class="form-label">Select Model</label>
+                    <select class="form-select" id="modelSelect">
+                        <option value="gemini">Gemini 2.5 Pro (Free, rate-limited)</option>
+                        <option value="claude">Claude 3.7 Sonnet</option>
+                        <option value="o1">OpenAI o1</option>
+                        <option value="4o">OpenAI GPT-4o</option>
+                    </select>
+                </div>
+            </div>
+
             <!-- File Upload Section (Initially Hidden) -->
             <div id="fileUploadSection" class="file-upload-container" style="display: none;">
                 <div class="mb-3">
@@ -806,6 +828,16 @@
             });
 
             function performInitialization($button) {
+
+                const apiKey = $('#apiKey').val();
+                const model = $('#modelSelect').val();
+                
+                // Validate API key
+                if (!apiKey || apiKey.trim() === '') {
+                    alert('Please enter a valid API key.');
+                    return;
+                }
+
                 $('.loading').show();
                 $('#summary-section, #code-section, #feedback-section, #output-section').hide(); // Hide current analysis during init
                 $('#figures-container').empty();
@@ -819,6 +851,8 @@
                 const formData = new FormData();
                 const dataSource = $('input[name="dataSource"]:checked').val();
                 formData.append('dataSource', dataSource);
+                formData.append('apiKey', apiKey);
+                formData.append('model', model);
 
                 if (isInit) {
                     // If already initialized, we wait for the user to select data
@@ -956,7 +990,7 @@
                     error: function (initError) {
                         $('.loading').hide();
                         console.error("Initialisation error:", initError);
-                        alert('Error initialising data: ' + (initError.responseJSON ? initError.responseJSON.message : 'Unknown error'));
+                        alert('Error initialising data: ' + (initError.responseJSON ? initError.responseJSON.message : 'Unknown error. Try refreshing the page.'));
                         // Ensure button and panel are in initial state on error
                         isInit = false;
                         $('.data-source-selector').slideDown();

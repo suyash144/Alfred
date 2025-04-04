@@ -63,12 +63,15 @@ def init_data():
     app.state.conversation_history = []
     app.state.iteration_count = 0
     
-    if not os.getenv('API_KEY'):
-        logger.error("API_KEY not found in environment variables")
-        return jsonify({
-            "status": "error", 
-            "message": "API_KEY not found in environment variables. Please set this in order to use this tool."
-        })
+    api_key = request.form.get('apiKey', '')
+    model = request.form.get('model', 'gemini')
+
+    app.state.api_key = api_key
+    app.state.model = model
+
+    if not api_key:
+        logger.error("API key is missing")
+        return jsonify({"status": "error", "message": "API key is required"}), 400
     
     # Check which data source is being used
     data_source = request.form.get('dataSource', 'auto')
@@ -219,26 +222,28 @@ def get_analysis():
     logger.info(f"Getting analysis with conversation history length: {len(app.state.conversation_history)}")
 
     try:
-        # Get the appropriate client based on model specified in environment
-        if os.getenv('MODEL', default=None):
-            client = get_client(os.environ.get('MODEL'))
-            model_name = os.environ.get('MODEL')
-            if model_name == "o1":
-                logger.info("Using model: o1 (Note: Better but slower than GPT-4o)")
-            elif model_name == "claude":
-                logger.info("Using model: Claude 3.7 Sonnet (Note: Best responses)")
-            elif model_name == "gemini":
-                logger.info("Using model: Gemini 2.5 Pro (Note: Free but limited token rate)")
-            elif model_name == "4o":
-                logger.info("Using model: GPT-4o (Note: Cheapest per token)")
+        model_name = app.state.model
+        client = get_client(model_name, app.state.api_key)
+        if model_name == "o1":
+            logger.info("Using model: o1 (Note: Better but slower than GPT-4o)")
+            app.state.MODEL_NAME = "o1-2024-12-17"
+        elif model_name == "claude":
+            logger.info("Using model: Claude 3.7 Sonnet (Note: Best responses)")
+            app.state.MODEL_NAME = "claude-3-7-sonnet-20250219"
+        elif model_name == "gemini":
+            logger.info("Using model: Gemini 2.5 Pro (Note: Free but limited token rate)")
+            app.state.MODEL_NAME = "gemini-2.5-pro-exp-03-25"
+        elif model_name == "4o":
+            logger.info("Using model: GPT-4o (Note: Cheapest per token)")
+            app.state.MODEL_NAME = "gpt-4o-2024-11-20"
         else:
             model_name = "gemini"
-            client = get_client(model_name)
+            app.state.MODEL_NAME = "gemini-2.5-pro-exp-03-25"
             logger.info("Using default model: Gemini 2.5 Pro")
         
         # Build prompt and call LLM
-        prompt = build_llm_prompt(app.state.conversation_history)
-        llm_response = call_llm_and_parse(client, prompt)
+        prompt = build_llm_prompt(app.state.conversation_history, app.state.MODEL_NAME)
+        llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=app.state.MODEL_NAME)
 
         app.state.iteration_count += 1
         
@@ -703,13 +708,11 @@ def send_feedback():
     
     # Now automatically get the next analysis
     try:
-        if os.getenv('MODEL', default=None):
-            client = get_client(os.environ.get('MODEL'))
-        else:
-            client = get_client("gemini")
-        
-        prompt = build_llm_prompt(app.state.conversation_history)
-        llm_response = call_llm_and_parse(client, prompt)
+        model_name = app.state.model
+        client = get_client(model_name, app.state.api_key)
+    
+        prompt = build_llm_prompt(app.state.conversation_history, app.state.MODEL_NAME)
+        llm_response = call_llm_and_parse(client, prompt, model_name=app.state.MODEL_NAME)
 
         app.state.iteration_count += 1
         
