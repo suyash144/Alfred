@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, g
 import os
 import numpy as np
 import pandas as pd
@@ -16,10 +16,14 @@ from data_loader import *
 # Flask routes
 ###############################################################################
 app = Flask(__name__)
-app.state = AppState()
+
+@app.before_request
+def load_user_state():
+    g.state = get_user_state()
+
+app.state = g.state
 
 logger.info("Click here to run Alfred: http://localhost:5000")
-
 
 @app.route('/')
 def index():

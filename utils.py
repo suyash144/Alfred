@@ -1,6 +1,8 @@
 import sys, os, io
 import matplotlib.pyplot as plt
 from pydantic import BaseModel
+import uuid
+from flask import session
 import json
 import openai
 import anthropic
@@ -25,6 +27,7 @@ logger = logging.getLogger('alfred')
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 ALLOWED_EXTENSIONS = {'csv', 'npy', 'json'}
+user_states = {}
 
 
 class AppState:
@@ -42,6 +45,20 @@ class AppState:
         self.model = "gemini"           # default model
         self.MODEL_NAME = "gemini-2.5-pro-exp-03-25"
 
+###############################################################################
+# Pydantic model for the LLM's structured output
+###############################################################################
+def get_user_state():
+    """Fetch or create a new state for the current user."""
+    # Ensure the user has a unique session ID
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+    session_id = session['session_id']
+    
+    # If this session does not have a state yet, create one
+    if session_id not in user_states:
+        user_states[session_id] = AppState()  # Assuming AppState is your Alfred state container
+    return user_states[session_id]
 
 ###############################################################################
 # Pydantic model for the LLM's structured output
