@@ -412,77 +412,93 @@ def execute_code():
     
     # Set up a background thread to handle long-running code execution
     def process_execution_results():
-        try:
-            # Wait for results with a timeout
-            if parent_conn.poll(600.0):  # 600 second timeout
-                output_text, figures, _, had_error, new_namespace = parent_conn.recv()
+        with app.app_context():
+            try:
+                # Wait for results with a timeout
+                if parent_conn.poll(600.0):  # 600 second timeout
+                    output_text, figures, _, had_error, new_namespace = parent_conn.recv()
 
-                # Update analysis namespace
-                g.state.analysis_namespace.update(dill.loads(new_namespace))
-                
-                # Check if execution was terminated
-                if output_text == "TERMINATED":
-                    logger.info(f"Execution {execution_id} was terminated")
-                    g.state.execution_results[execution_id]['status'] = 'cancelled'
-                    g.state.execution_results[execution_id]['output'] = "Execution was cancelled by user."
+                    # Update analysis namespace
+                    g.state.analysis_namespace.update(dill.loads(new_namespace))
+                    
+                    # Check if execution was terminated
+                    if output_text == "TERMINATED":
+                        logger.info(f"Execution {execution_id} was terminated")
+                        g.state.execution_results[execution_id]['status'] = 'cancelled'
+                        g.state.execution_results[execution_id]['output'] = "Execution was cancelled by user."
+                        g.state.execution_results[execution_id]['complete'] = True
+                        return
+                    
+                    # Process figures if any
+                    figure_data = []
+                    for i, fig in enumerate(figures or []):
+                        img_str = fig_to_base64(fig)
+                        figure_data.append({
+                            "id": i,
+                            "data": img_str
+                        })
+                        
+                        # Add figure to conversation history
+                        title = fig._suptitle.get_text() if hasattr(fig, '_suptitle') and fig._suptitle else f"Figure {i+1}"
+                        logger.info(f"Generated figure: {title}")
+                        
+                        g.state.conversation_history.append({
+                            "role": "figure",
+                            "type": "figure",
+                            "iteration": g.state.iteration_count,
+                            "content": {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{img_str}",
+                                },
+                            }
+                        })
+                    
+                    # Store the results for retrieval
+                    g.state.execution_results[execution_id]['status'] = 'completed'
+                    g.state.execution_results[execution_id]['output'] = output_text
+                    g.state.execution_results[execution_id]['figures'] = figure_data
+                    g.state.execution_results[execution_id]['error'] = had_error
                     g.state.execution_results[execution_id]['complete'] = True
-                    return
-                
-                # Process figures if any
-                figure_data = []
-                for i, fig in enumerate(figures or []):
-                    img_str = fig_to_base64(fig)
-                    figure_data.append({
-                        "id": i,
-                        "data": img_str
-                    })
                     
-                    # Add figure to conversation history
-                    title = fig._suptitle.get_text() if hasattr(fig, '_suptitle') and fig._suptitle else f"Figure {i+1}"
-                    logger.info(f"Generated figure: {title}")
+                    # Add output to conversation history if it exists
+                    if had_error:
+                        logger.warning(f"Execution {execution_id} resulted in error")
+                        g.state.conversation_history.append({
+                            "role": "assistant",
+                            "type": "output",
+                            "iteration": g.state.iteration_count,
+                            "content": "Error while running code:\n" + output_text
+                        })
+                    elif output_text.strip():
+                        g.state.conversation_history.append({
+                            "role": "assistant",
+                            "type": "output",
+                            "iteration": g.state.iteration_count,
+                            "content": "Code Output:\n" + output_text
+                        })
                     
-                    g.state.conversation_history.append({
-                        "role": "figure",
-                        "type": "figure",
-                        "iteration": g.state.iteration_count,
-                        "content": {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{img_str}",
-                            },
-                        }
-                    })
-                
-                # Store the results for retrieval
-                g.state.execution_results[execution_id]['status'] = 'completed'
-                g.state.execution_results[execution_id]['output'] = output_text
-                g.state.execution_results[execution_id]['figures'] = figure_data
-                g.state.execution_results[execution_id]['error'] = had_error
-                g.state.execution_results[execution_id]['complete'] = True
-                
-                # Add output to conversation history if it exists
-                if had_error:
-                    logger.warning(f"Execution {execution_id} resulted in error")
+                else:
+                    # Timeout occurred
+                    logger.warning(f"Execution {execution_id} timed out")
+                    output_text = "Execution timed out after 5 minutes. Consider optimizing your code or using smaller datasets."
+                    
+                    g.state.execution_results[execution_id]['status'] = 'timeout'
+                    g.state.execution_results[execution_id]['output'] = output_text
+                    g.state.execution_results[execution_id]['error'] = True
+                    g.state.execution_results[execution_id]['complete'] = True
+                    
                     g.state.conversation_history.append({
                         "role": "assistant",
                         "type": "output",
                         "iteration": g.state.iteration_count,
-                        "content": "Error while running code:\n" + output_text
+                        "content": "Execution timed out:\n" + output_text
                     })
-                elif output_text.strip():
-                    g.state.conversation_history.append({
-                        "role": "assistant",
-                        "type": "output",
-                        "iteration": g.state.iteration_count,
-                        "content": "Code Output:\n" + output_text
-                    })
+            except Exception as e:
+                logger.error(f"Error processing execution results: {str(e)}")
+                output_text = f"Error during execution: {str(e)}"
                 
-            else:
-                # Timeout occurred
-                logger.warning(f"Execution {execution_id} timed out")
-                output_text = "Execution timed out after 5 minutes. Consider optimizing your code or using smaller datasets."
-                
-                g.state.execution_results[execution_id]['status'] = 'timeout'
+                g.state.execution_results[execution_id]['status'] = 'error'
                 g.state.execution_results[execution_id]['output'] = output_text
                 g.state.execution_results[execution_id]['error'] = True
                 g.state.execution_results[execution_id]['complete'] = True
@@ -491,29 +507,14 @@ def execute_code():
                     "role": "assistant",
                     "type": "output",
                     "iteration": g.state.iteration_count,
-                    "content": "Execution timed out:\n" + output_text
+                    "content": f"Execution error:\n{output_text}"
                 })
-        except Exception as e:
-            logger.error(f"Error processing execution results: {str(e)}")
-            output_text = f"Error during execution: {str(e)}"
-            
-            g.state.execution_results[execution_id]['status'] = 'error'
-            g.state.execution_results[execution_id]['output'] = output_text
-            g.state.execution_results[execution_id]['error'] = True
-            g.state.execution_results[execution_id]['complete'] = True
-            
-            g.state.conversation_history.append({
-                "role": "assistant",
-                "type": "output",
-                "iteration": g.state.iteration_count,
-                "content": f"Execution error:\n{output_text}"
-            })
-        finally:
-            # Clean up the process
-            if execution_id in g.state.active_executions:
-                if g.state.active_executions[execution_id]['process'].is_alive():
-                    g.state.active_executions[execution_id]['process'].terminate()
-                del g.state.active_executions[execution_id]
+            finally:
+                # Clean up the process
+                if execution_id in g.state.active_executions:
+                    if g.state.active_executions[execution_id]['process'].is_alive():
+                        g.state.active_executions[execution_id]['process'].terminate()
+                    del g.state.active_executions[execution_id]
     
     # Start background thread for monitoring
     thread = threading.Thread(target=process_execution_results)
