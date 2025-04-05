@@ -34,7 +34,7 @@ SYSTEM_PROMPT = (
     "The data for analysis is stored in some variables, the names of which will be provided."
     "Use only the data provided. Do not simulate hypothetical data to act as a placeholder for data that was not provided."
     "Do not waste time checking which variables are available."
-    "If you define a new variable, it will be accessible in future iterations."
+    "If you define a new variable or define a function, it will be accessible in future iterations."
 )
 
 # This is the fixed part of the user prompt appended at the end of conversation history
