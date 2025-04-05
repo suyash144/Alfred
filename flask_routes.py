@@ -16,6 +16,7 @@ from data_loader import *
 # Flask routes
 ###############################################################################
 app = Flask(__name__)
+app.secret_key = os.environ.get('FLASK_SECRET', 'default_secret_key')
 
 @app.before_request
 def load_user_state():
