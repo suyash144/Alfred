@@ -1,6 +1,8 @@
 import sys, os, io
 import matplotlib.pyplot as plt
 from pydantic import BaseModel
+import uuid
+from flask import session
 import json
 import openai
 import anthropic
@@ -11,6 +13,7 @@ import base64
 import logging
 import signal
 import dill
+from prompts import SYSTEM_PROMPT, NOW_CONTINUE_TEXT
 
 # Configure logging
 logging.basicConfig(
@@ -23,60 +26,8 @@ logging.basicConfig(
 logger = logging.getLogger('alfred')
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
-if os.environ.get('MODEL')=="4o":
-    MODEL_NAME = "gpt-4o-2024-11-20"
-elif os.environ.get('MODEL')=="o1":
-    MODEL_NAME = "o1-2024-12-17"
-elif os.environ.get('MODEL')=="claude":
-    MODEL_NAME = "claude-3-7-sonnet-20250219"
-elif os.environ.get('MODEL')=='gemini':
-    MODEL_NAME = "gemini-2.5-pro-exp-03-25"
-else:
-    MODEL_NAME = "gemini-2.5-pro-exp-03-25"
-
 ALLOWED_EXTENSIONS = {'csv', 'npy', 'json'}
-
-SYSTEM_PROMPT = (
-    "You are a helpful assistant designed to perform iterative exploratory data analysis. "
-    "The data for analysis is stored in some variables, the names of which will be provided below. "
-    "On each step, you must output valid JSON that "
-    "follows the LLMResponse schema (two fields: \"text_summary\" and \"python_code\"). Only double quotes are interpreted as valid JSON strings. Single quotes can only be used inside a string."
-    "Each field should point to a string. Do not output extra keys or any text outside the JSON."
-    
-    "\n\nYour 'text_summary' should be structured with the following sections:"
-    "\n1. ## Interpretation of last analysis"
-    "\n   - Explain what you learned from the previous analysis or execution results"
-    "\n   - Include specific insights, patterns, or anomalies discovered"
-    
-    "\n2. ## Current understanding of data"
-    "\n   - Summarize your updated understanding of the data"
-    "\n   - Focus only on new information that wasn't known before"
-    "\n   - Include distributions, relationships, or important features"
-    
-    "\n3. ## Open questions"
-    "\n   - List any unresolved questions or aspects that need further investigation"
-    "\n   - Include hypotheses that need testing"
-    
-    "\n4. ## Proposed next analysis"
-    "\n   - Describe the specific analysis you're proposing next"
-    "\n   - Explain why this is the most logical next step"
-    "\n   - Outline what you hope to learn from this analysis"
-    
-    "\n\nYour 'python_code' should be a single Python "
-    "analysis snippet that the user can run. It is crucial that your code outputs something using print statements or matplotlib figures as this is what "
-    "you will receive as your next prompt. The Python snippet must also include any required import statements. "
-    "When you import a library, use the syntax 'import [LIBRARY] as [ALIAS]' rather than 'from [LIBRARY] import *'. This avoids namespace conflicts and keeps the code readable. "
-    "Ensure that each import statement is followed by a line break."
-    "Set the plot style using seaborn rather than matplotlib. Output figures to stdout using plt.show(). Do not save figures."
-    "The data for analysis is stored in some variables, the names of which will be provided."
-    "Do not waste time checking which variables are available. If you define a new variable, it will be accessible in future iterations."
-)
-
-# This is the fixed part of the user prompt appended at the end of conversation history
-NOW_CONTINUE_TEXT = (
-    "Now continue with a new step: Summarize what is known so far about the data, "
-    "propose 5 or so working hypotheses, and suggest code for a single analysis step."
-)
+user_states = {}
 
 
 ###############################################################################
@@ -95,6 +46,24 @@ class AppState:
         self.execution_results = {}
         self.iteration_count = 0
         self.analysis_namespace = {}
+        self.api_key = None
+        self.model = "gemini"           # default model
+        self.MODEL_NAME = "gemini-2.5-pro-exp-03-25"
+
+###############################################################################
+# Pydantic model for the LLM's structured output
+###############################################################################
+def get_user_state():
+    """Fetch or create a new state for the current user."""
+    # Ensure the user has a unique session ID
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+    session_id = session['session_id']
+    
+    # If this session does not have a state yet, create one
+    if session_id not in user_states:
+        user_states[session_id] = AppState()  # Assuming AppState is your Alfred state container
+    return user_states[session_id]
 
 ###############################################################################
 # Pydantic model for the LLM's structured output
@@ -115,7 +84,7 @@ def extract_base64_from_data_url(data_url):
 ###############################################################################
 # Build the prompt for the LLM
 ###############################################################################
-def build_llm_prompt(conversation_history):
+def build_llm_prompt(conversation_history, MODEL_NAME):
     """
     Build a prompt for the LLM, incorporating the current conversation history.
     For text entries, we maintain the existing format.
@@ -469,7 +438,7 @@ def safe_json_loads(json_str):
 ###############################################################################
 # Actual LLM call to parse response
 ###############################################################################
-def call_llm_and_parse(client, prompt, custom_system_prompt=None):
+def call_llm_and_parse(client, prompt, custom_system_prompt=None, MODEL_NAME = "gemini-2.5-pro-exp-03-25"):
     """
     Calls the LLM client to parse the response into LLMResponse
     using the JSON schema automatically.
@@ -557,13 +526,14 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None):
 ###############################################################################
 # Functions to get LLM clients
 ###############################################################################
-def get_client(model_name):
+def get_client(model_name, api_key=None):
     """Returns the appropriate client based on the model name"""
 
-    api_key = os.environ.get('API_KEY', None)
     if not api_key:
-        logger.error("API_KEY environment variable not set")
-        raise ValueError("API_KEY environment variable is required")
+        api_key = get_api_key(model_name)
+        if not api_key:
+            logger.error("No API key provided")
+            raise ValueError("API_KEY is required")
     
     if model_name=="4o" or model_name=="o1":
         return openai.OpenAI(api_key=api_key)
@@ -576,6 +546,19 @@ def get_client(model_name):
     else:
         logger.error(f"Invalid model name: {model_name}")
         raise ValueError("Invalid model name - choose 4o, o1, gemini or claude")
+
+###############################################################################
+# Function to get API key from environment variables
+###############################################################################
+def get_api_key(model):
+    if model == "claude":
+        return os.environ.get('API_KEY_ANT', None)
+    elif model == "gemini":
+        return os.environ.get('API_KEY_GEM', None)
+    elif model == "4o" or model == "o1":
+        return os.environ.get('API_KEY_OAI', None)
+    else:
+        return None
 
 ###############################################################################
 # Function to convert matplotlib figure to base64 for web display

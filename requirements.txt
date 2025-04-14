@@ -12,3 +12,5 @@ seaborn
 scikit-learn
 anthropic
 google-genai
+statsmodels
+umap
