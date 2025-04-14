@@ -605,19 +605,11 @@
                         <div id="summary-content" class="mb-4 p-3 border rounded"></div>
                     </div>
 
-                    <div id="code-section" style="display: none;">
-                        <h4>Proposed Code</h4>
-                        <pre><code id="code-content" class="python"></code></pre>
-                        <div class="button-group mt-3 mb-4">
-                            <button id="action-btn" class="btn btn-warning">Execute Code</button>
-                            <!-- <button id="execute-and-analyze-btn" class="btn btn-info ms-2">Execute & Continue</button> -->
-                        </div>
-                    </div>
-
                     <div id="feedback-section" style="display: none;">
                         <h4>Provide Feedback</h4>
                         <textarea id="feedback-input" class="form-control feedback-input mb-2"
                             placeholder="Enter your feedback here..."></textarea>
+                        <button id="action-btn" class="btn btn-warning">Execute Code</button>
                         <button id="send-feedback-btn" class="btn btn-info">Send Feedback</button>
                     </div>
 
@@ -858,7 +850,7 @@
                 const model = $('#modelSelect').val();
 
                 $('.loading').show();
-                $('#summary-section, #code-section, #feedback-section, #output-section').hide(); // Hide current analysis during init
+                $('#summary-section, #feedback-section, #output-section').hide(); // Hide current analysis during init
                 $('#figures-container').empty();
 
                 // Reset relevant history displays immediately for better UX during restart
@@ -946,11 +938,6 @@
                                     // Display summary
                                     $('#summary-content').html(markdownToHtml(analysisResponse.summary));
                                     $('#summary-section').show();
-
-                                    // Display code
-                                    $('#code-content').text(analysisResponse.code);
-                                    hljs.highlightElement(document.getElementById('code-content'));
-                                    $('#code-section').show();
 
                                     // Show feedback section
                                     $('#feedback-section').show();
@@ -1371,7 +1358,7 @@
 
             function getNextAnalysis() {
                 $('.loading').show();
-                $('#code-section, #feedback-section, #output-section').hide();
+                $('#feedback-section, #output-section').hide();
                 $('#figures-container').empty();
 
                 // Reset scrolling state to ensure auto-scroll to bottom for new analysis
@@ -1391,11 +1378,6 @@
                             // Display summary
                             $('#summary-content').html(markdownToHtml(response.summary));
                             $('#summary-section').show();
-
-                            // Display code
-                            $('#code-content').text(response.code);
-                            hljs.highlightElement(document.getElementById('code-content'));
-                            $('#code-section').show();
 
                             // Show feedback section
                             $('#feedback-section').show();
@@ -1424,7 +1406,6 @@
                         
                         // Make sure critical sections stay visible
                         $('#summary-section').show();
-                        $('#code-section').show();
                         $('#feedback-section').show();
                         
                         // If we have any previous content, ensure it's still displayed
@@ -1465,7 +1446,7 @@
                         $('#feedback-input').val('');
 
                         // Hide sections during transition
-                        $('#code-section, #feedback-section, #output-section').hide();
+                        $('#feedback-section, #output-section').hide();
                         $('#figures-container').empty();
 
                         // First refresh conversation history
@@ -1480,11 +1461,6 @@
                             // Display summary
                             $('#summary-content').html(markdownToHtml(response.next_analysis.summary));
                             $('#summary-section').show();
-
-                            // Display code
-                            $('#code-content').text(response.next_analysis.code);
-                            hljs.highlightElement(document.getElementById('code-content'));
-                            $('#code-section').show();
 
                             // Show feedback section
                             $('#feedback-section').show();
@@ -1558,7 +1534,7 @@
             // Update Get Analysis button handler to include history refresh
             $('#get-analysis-btn').click(function () {
                 $('.loading').show();
-                $('#code-section, #feedback-section, #output-section').hide();
+                $('#feedback-section, #output-section').hide();
                 $('#figures-container').empty();
 
                 $.ajax({
@@ -1575,11 +1551,6 @@
                             // Display summary
                             $('#summary-content').html(markdownToHtml(response.summary));
                             $('#summary-section').show();
-
-                            // Display code
-                            $('#code-content').text(response.code);
-                            hljs.highlightElement(document.getElementById('code-content'));
-                            $('#code-section').show();
 
                             // Show feedback section
                             $('#feedback-section').show();
@@ -1602,7 +1573,6 @@
                         
                         // Make sure critical sections stay visible
                         $('#summary-section').show();
-                        $('#code-section').show();
                         $('#feedback-section').show();
                         
                         // If we have any previous content, ensure it's still displayed

@@ -244,7 +244,7 @@ def get_analysis():
             logger.info("Using model: Gemini 2.5 Pro (Note: Free but limited token rate)")
             g.state.MODEL_NAME = "gemini-2.5-pro-exp-03-25"
         elif model_name == "4o":
-            logger.info("Using model: GPT-4o (Note: Cheapest per token)")
+            logger.info("Using model: GPT-4o (Note: Usually the fastest)")
             g.state.MODEL_NAME = "gpt-4o-2024-11-20"
         else:
             model_name = "gemini"
