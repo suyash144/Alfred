@@ -184,7 +184,10 @@ def process_uploaded_files(file_info):
                 
             elif file_type == 'npy':
                 # Load NumPy array
-                arr = np.load(file_path)
+                try:
+                    arr = np.load(file_path)
+                except:
+                    arr  = np.load(file_path, allow_pickle=True)
                 var_name = f'arr_{base_name}'
                 g.state.analysis_namespace[var_name] = arr
                 processed_files.append((var_name, f"NumPy array with shape {arr.shape}"))
