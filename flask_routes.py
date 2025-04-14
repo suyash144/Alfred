@@ -228,8 +228,10 @@ def process_uploaded_files(file_info):
 
 @app.route('/get_analysis', methods=['GET'])
 def get_analysis():
-    """Get analysis from LLM based on conversation history"""
+    """Get text from LLM based on conversation history"""
     logger.info(f"Getting analysis with conversation history length: {len(g.state.conversation_history)}")
+
+    response_type = request.args.get('response_type', 'text')
 
     try:
         model_name = g.state.model
@@ -252,16 +254,16 @@ def get_analysis():
             logger.info("Using default model: Gemini 2.5 Pro")
         
         # Build prompt and call LLM
-        prompt = build_llm_prompt(g.state.conversation_history, g.state.MODEL_NAME)
-        llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=g.state.MODEL_NAME)
+        prompt = build_llm_prompt(g.state.conversation_history, g.state.MODEL_NAME, response_type=response_type)
+        llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=g.state.MODEL_NAME, response_type=response_type)
 
-        g.state.iteration_count += 1
+        if response_type == "code":
+            g.state.iteration_count += 1
         
         logger.info(f"Successfully got analysis from {model_name}")
         return jsonify({
             "status": "success",
-            "summary": llm_response.text_summary,
-            "code": llm_response.python_code,
+            "response": llm_response,
             "conversation_length": len(g.state.conversation_history)
         })
     
@@ -725,8 +727,8 @@ def send_feedback():
         model_name = g.state.model
         client = get_client(model_name, g.state.api_key)
     
-        prompt = build_llm_prompt(g.state.conversation_history, g.state.MODEL_NAME)
-        llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=g.state.MODEL_NAME)
+        prompt = build_llm_prompt(g.state.conversation_history, g.state.MODEL_NAME, response_type="feedback")
+        llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=g.state.MODEL_NAME, response_type="feedback")
 
         g.state.iteration_count += 1
         
@@ -736,10 +738,7 @@ def send_feedback():
         return jsonify({
             "status": "success", 
             "history_length": len(g.state.conversation_history),
-            "next_analysis": {
-                "summary": llm_response.text_summary,
-                "code": llm_response.python_code
-            }
+            "response": llm_response
         })
     except Exception as e:
         logger.error(f"Error getting next analysis after feedback: {str(e)}")

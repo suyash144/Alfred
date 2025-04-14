@@ -609,7 +609,7 @@
                         <h4>Provide Feedback</h4>
                         <textarea id="feedback-input" class="form-control feedback-input mb-2"
                             placeholder="Enter your feedback here..."></textarea>
-                        <button id="action-btn" class="btn btn-warning">Execute Code</button>
+                        <button id="action-btn" class="btn btn-warning">Analyse</button>
                         <button id="send-feedback-btn" class="btn btn-info">Send Feedback</button>
                     </div>
 
@@ -927,25 +927,26 @@
                         $.ajax({
                             url: '/get_analysis',
                             type: 'GET',
+                            data: {
+                                response_type: 'text',
+                            },
                             success: function (analysisResponse) {
                                 $('.loading').hide();
                                 console.log("First analysis response:", analysisResponse);
 
                                 if (analysisResponse.status === 'success') {
-                                    currentSummary = analysisResponse.summary;
-                                    currentCode = analysisResponse.code;
+                                    currentSummary = analysisResponse.response;
 
                                     // Display summary
-                                    $('#summary-content').html(markdownToHtml(analysisResponse.summary));
+                                    $('#summary-content').html(markdownToHtml(currentSummary));
                                     $('#summary-section').show();
 
                                     // Show feedback section
                                     $('#feedback-section').show();
 
-                                    // Set button to execute state
-                                    setButtonState('execute');
+                                    // Set button to analyse state
+                                    setButtonState('analyse');
 
-                                    // --- >>> NEW LOGIC: Hide panel and change button <<< ---
                                     if (!isInit) {
                                         // Smoothly hide the data source selection panel
                                         $('.data-source-selector').slideUp();
@@ -1101,7 +1102,7 @@
             
             // Dynamic action button - changes function based on state
             $('#action-btn').click(function () {
-                if (buttonState === 'execute') {
+                if (buttonState === 'analyse') {
                     executeCode();
                 } else if (buttonState === 'stop') {
                     stopExecution();
@@ -1192,19 +1193,19 @@
                 buttonState = state;
                 const actionBtn = $('#action-btn');
 
-                if (state === 'execute') {
-                    actionBtn.text('Execute Code');
+                if (state === 'analyse') {
+                    actionBtn.text('Analyse');
                     actionBtn.removeClass('btn-success btn-danger').addClass('btn-warning');
                 } else if (state === 'stop') {
-                    actionBtn.text('Stop Execution');
+                    actionBtn.text('Stop Analysis');
                     actionBtn.removeClass('btn-success btn-warning').addClass('btn-danger');
                 } else {
-                    actionBtn.text('Get Next Analysis');
-                    actionBtn.removeClass('btn-warning btn-danger').addClass('btn-success');
+                    actionBtn.text('Analyse');
+                    actionBtn.removeClass('btn-success btn-danger').addClass('btn-warning');
                 }
             }
 
-            // Function to execute code
+            // Function to get and execute code from LLM
             function executeCode() {
                 $('.loading').show();
                 $('#output-section').hide();
@@ -1214,34 +1215,65 @@
                 setButtonState('stop');
                 codeExecutionInProgress = true;
 
-                console.log("Executing code...");
+                console.log("Generating code...");
 
-                // Generate a unique execution ID
                 executionId = Date.now().toString();
-                
+
+                // First, get the analysis/code
                 $.ajax({
-                    url: '/execute_code',
-                    type: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({
-                        code: currentCode,
-                        summary: currentSummary,
-                        execution_id: executionId
-                    }),
-                    success: function (response) {
-                        console.log("Code execution started:", response);
-                        
-                        // Start polling for results
-                        pollExecutionResults(executionId);
+                    url: '/get_analysis',
+                    type: 'GET',
+                    data: {
+                        response_type: 'code',
                     },
-                    error: function (error) {
+                    success: function(analysisResponse) {
+                        if (analysisResponse.status === 'success') {
+                            currentCode = analysisResponse.response;
+                            
+                            // Now that we have the code, execute it
+                            
+                            $.ajax({
+                                url: '/execute_code',
+                                type: 'POST',
+                                contentType: 'application/json',
+                                data: JSON.stringify({
+                                    code: currentCode,
+                                    summary: currentSummary,
+                                    execution_id: executionId
+                                }),
+                                success: function(response) {
+                                    console.log("Code execution started:", response);
+                                    
+                                    // Start polling for results
+                                    pollExecutionResults(executionId);
+
+                                },
+                                error: function(error) {
+                                    $('.loading').hide();
+                                    codeExecutionInProgress = false;
+                                    console.error("Execution error:", error);
+                                    alert('Error starting code execution: ' + (error.responseJSON ? error.responseJSON.message : 'Unknown error'));
+                                    
+                                    // Reset button to analyse state
+                                    setButtonState('analyse');
+                                }
+                            });
+                        } else {
+                            $('.loading').hide();
+                            codeExecutionInProgress = false;
+                            alert('Error getting code: ' + analysisResponse.message);
+                            
+                            // Reset button to analyse state
+                            setButtonState('analyse');
+                        }
+                    },
+                    error: function(analysisError) {
                         $('.loading').hide();
                         codeExecutionInProgress = false;
-                        console.error("Execution error:", error);
-                        alert('Error starting code execution: ' + (error.responseJSON ? error.responseJSON.message : 'Unknown error'));
+                        alert('Error getting code from LLM: ' + (analysisError.responseJSON ? analysisError.responseJSON.message : 'Unknown error'));
                         
-                        // Reset button to execute state
-                        setButtonState('execute');
+                        // Reset button to analyse state
+                        setButtonState('analyse');
                     }
                 });
             }
@@ -1295,12 +1327,10 @@
                                 // Refresh conversation history after a short delay
                                 setTimeout(refreshConversationHistory, 500);
                                 
-                                // Transform the button to "Get Next Analysis" if not cancelled
-                                if (response.status !== 'cancelled') {
-                                    setButtonState('analyze');
-                                } else {
-                                    setButtonState('execute');
-                                }
+                                setButtonState('analyse');
+
+                                getNextAnalysis();
+                                
                             }
                             // If not complete, we'll poll again
                         },
@@ -1309,7 +1339,7 @@
                             clearInterval(pollInterval);
                             $('.loading').hide();
                             codeExecutionInProgress = false;
-                            setButtonState('execute');
+                            setButtonState('analyse');
                         }
                     });
                 }, 1000); // Poll every second
@@ -1344,7 +1374,7 @@
                         codeExecutionInProgress = false;
                         
                         // Reset button to execute state
-                        setButtonState('execute');
+                        setButtonState('analyse');
                         
                         // Refresh conversation history after a short delay
                         setTimeout(refreshConversationHistory, 500);
@@ -1358,25 +1388,28 @@
 
             function getNextAnalysis() {
                 $('.loading').show();
-                $('#feedback-section, #output-section').hide();
-                $('#figures-container').empty();
+                $('#feedback-section').hide();
 
                 // Reset scrolling state to ensure auto-scroll to bottom for new analysis
                 scrollingState.active = false;
 
+                console.log("Getting next analysis...");
+
                 $.ajax({
                     url: '/get_analysis',
                     type: 'GET',
+                    data: {
+                        response_type: 'text',
+                    },
                     success: function (response) {
                         $('.loading').hide();
                         console.log("Analysis response:", response);
 
                         if (response.status === 'success') {
-                            currentSummary = response.summary;
-                            currentCode = response.code;
+                            currentSummary = response.response;
 
                             // Display summary
-                            $('#summary-content').html(markdownToHtml(response.summary));
+                            $('#summary-content').html(markdownToHtml(currentSummary));
                             $('#summary-section').show();
 
                             // Show feedback section
@@ -1389,7 +1422,7 @@
                             }, 500);
 
                             // Transform the button back to "Execute Code"
-                            setButtonState('execute');
+                            setButtonState('analyse');
                         } else {
                             alert('Error: ' + response.message);
                         }
@@ -1400,8 +1433,8 @@
                         alert('Error getting analysis: ' + (error.responseJSON ? error.responseJSON.message : 'Unknown error'));
 
                         // Keep the Get Next Analysis button visible
-                        if (buttonState !== 'analyze') {
-                            setButtonState('analyze');
+                        if (buttonState !== 'analyse') {
+                            setButtonState('analyse');
                         }
                         
                         // Make sure critical sections stay visible
@@ -1447,26 +1480,24 @@
 
                         // Hide sections during transition
                         $('#feedback-section, #output-section').hide();
-                        $('#figures-container').empty();
 
                         // First refresh conversation history
                         refreshConversationHistory();
 
-                        // Check if we have a next analysis from the server
-                        if (response.next_analysis) {
+                        // Check if we have a response from the server
+                        if (response.response) {
                             // Update with the new analysis data
-                            currentSummary = response.next_analysis.summary;
-                            currentCode = response.next_analysis.code;
+                            currentSummary = response.response;
 
                             // Display summary
-                            $('#summary-content').html(markdownToHtml(response.next_analysis.summary));
+                            $('#summary-content').html(markdownToHtml(currentSummary));
                             $('#summary-section').show();
 
                             // Show feedback section
                             $('#feedback-section').show();
 
                             // Set button to execute state
-                            setButtonState('execute');
+                            setButtonState('analyse');
 
                             // Hide loading indicator when complete
                             $('.loading').hide();
@@ -1540,13 +1571,15 @@
                 $.ajax({
                     url: '/get_analysis',
                     type: 'GET',
+                    data: {
+                        response_type: 'text',
+                    },
                     success: function (response) {
                         $('.loading').hide();
                         console.log("Analysis response:", response);
 
                         if (response.status === 'success') {
-                            currentSummary = response.summary;
-                            currentCode = response.code;
+                            currentSummary = response.response;
 
                             // Display summary
                             $('#summary-content').html(markdownToHtml(response.summary));
@@ -1567,8 +1600,8 @@
                         alert('Error getting analysis: ' + error.responseJSON ? error.responseJSON.message : 'Unknown error');
                         
                         // Keep the Get Next Analysis button visible
-                        if (buttonState !== 'analyze') {
-                            setButtonState('analyze');
+                        if (buttonState !== 'analyse') {
+                            setButtonState('analyse');
                         }
                         
                         // Make sure critical sections stay visible

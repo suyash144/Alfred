@@ -13,7 +13,7 @@ import base64
 import logging
 import signal
 import dill
-from prompts import SYSTEM_PROMPT, NOW_CONTINUE_TEXT
+from prompts import *
 
 # Configure logging
 logging.basicConfig(
@@ -84,7 +84,7 @@ def extract_base64_from_data_url(data_url):
 ###############################################################################
 # Build the prompt for the LLM
 ###############################################################################
-def build_llm_prompt(conversation_history, MODEL_NAME):
+def build_llm_prompt(conversation_history, MODEL_NAME, response_type):
     """
     Build a prompt for the LLM, incorporating the current conversation history.
     For text entries, we maintain the existing format.
@@ -108,13 +108,22 @@ def build_llm_prompt(conversation_history, MODEL_NAME):
 
     history_text_str = "\n".join(history_text)
 
+    if response_type == "code":
+        now_cont = NOW_CONTINUE_CODE
+    elif response_type == "feedback":
+        now_cont = NOW_CONTINUE_FDBK
+    elif response_type == "both":
+        now_cont = NOW_CONTINUE_BOTH
+    else:
+        now_cont = NOW_CONTINUE_TEXT
+    
     # Create the text prompt
     text_prompt = (
         "Below is the conversation so far, including user feedback and "
         "assistant's previous analysis or error messages (if any). Then "
         "provide your new output:\n\n"
         f"{history_text_str}\n\n"
-        f"{NOW_CONTINUE_TEXT}\n"
+        f"{now_cont}\n"
     )
     
     # Add the text as the first content part
@@ -438,7 +447,7 @@ def safe_json_loads(json_str):
 ###############################################################################
 # Actual LLM call to parse response
 ###############################################################################
-def call_llm_and_parse(client, prompt, custom_system_prompt=None, MODEL_NAME = "gemini-2.5-pro-exp-03-25"):
+def call_llm_and_parse(client, prompt, MODEL_NAME, response_type):
     """
     Calls the LLM client to parse the response into LLMResponse
     using the JSON schema automatically.
@@ -446,13 +455,13 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None, MODEL_NAME = "
     Args:
         client: LLM client (OpenAI, Google or Anthropic)
         prompt: List of content parts for the prompt
-        custom_system_prompt: Optional custom system prompt to add to default
+        MODEL_NAME: Name of the model to use
+        response_type: Type of response to expect (text, code, feedback, both)
     
     Returns:
         LLMResponse: Parsed response from the LLM
+        or just the response content if we don't need the JSON structured response
     """
-    # Use custom system prompt if provided, otherwise use default
-    system_prompt = SYSTEM_PROMPT+custom_system_prompt if custom_system_prompt else SYSTEM_PROMPT
     
     if MODEL_NAME.startswith('claude'):
         messages = [
@@ -460,13 +469,14 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None, MODEL_NAME = "
         ]
         completion = client.messages.create(
             model=MODEL_NAME,
-            system=system_prompt,
+            system=SYSTEM_PROMPT,
             messages=messages,
             max_tokens=5000
         )
         response_content = completion.content[0].text
-        response_content = re.sub(r'^```json\s*|\s*```$', '', response_content, flags=re.MULTILINE)
-        response_content = extract_json_dict(response_content)
+        if response_type == "both":
+            response_content = re.sub(r'^```json\s*|\s*```$', '', response_content, flags=re.MULTILINE)
+            response_content = extract_json_dict(response_content)
 
     elif MODEL_NAME.startswith('gemini'):
         text = prompt[0]["text"]
@@ -478,12 +488,21 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None, MODEL_NAME = "
             role = "user",
             parts = parts
         )
-        gen_config = types.GenerateContentConfig(
-            response_mime_type="application/json",
-            system_instruction=[
-                types.Part.from_text(text=system_prompt),
-            ],
-        )
+
+        if response_type == "both":
+            gen_config = types.GenerateContentConfig(
+                response_mime_type="application/json",
+                system_instruction=[
+                    types.Part.from_text(text=SYSTEM_PROMPT),
+                ],
+            )
+        else:
+            gen_config = types.GenerateContentConfig(
+                system_instruction=[
+                    types.Part.from_text(text=SYSTEM_PROMPT),
+                ],
+            )
+        
         response = client.models.generate_content(
             model=MODEL_NAME,
             contents=contents,
@@ -493,35 +512,51 @@ def call_llm_and_parse(client, prompt, custom_system_prompt=None, MODEL_NAME = "
 
     else:
         messages = [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
         ]
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            response_format={"type": "json_object"},
-            seed=42
-        )
-        # Parse the JSON response content manually
+        if response_type == "both":
+            completion = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=messages,
+                response_format={"type": "json_object"}
+            )
+
+        else:
+            completion = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages = messages
+            )
+        
         response_content = completion.choices[0].message.content
     
-    try:
-        parsed_response = safe_json_loads(response_content)
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM response: {e}")
-        if "Invalid \escape" in str(e):
-            parsed_response = {"text_summary":"Invalid escape sequence found in JSON response. Please correct this."}
-        else:
-            parsed_response = {"text_summary":"JSONDecodeError. Please correct this."}
-            logger.error(f"Raw response: {response_content}")
+    if response_type == "both":
+        try:
+            parsed_response = safe_json_loads(response_content)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse LLM response: {e}")
+            if "Invalid \escape" in str(e):
+                parsed_response = {"text_summary":"Invalid escape sequence found in JSON response. Please correct this."}
+            else:
+                parsed_response = {"text_summary":"JSONDecodeError. Please correct this."}
+                logger.error(f"Raw response: {response_content}")
         
-    # Convert to LLMResponse
-    llm_response = LLMResponse(
-        text_summary=parsed_response.get("text_summary", ""),
-        python_code=parsed_response.get("python_code", "")
-    )
-    # Return the parsed LLMResponse object
-    return llm_response
+        # Convert to LLMResponse
+        llm_response = LLMResponse(
+            text_summary=parsed_response.get("text_summary", ""),
+            python_code=parsed_response.get("python_code", "")
+        )
+        # Return the parsed LLMResponse object
+        return llm_response
+
+    elif response_type == "code":
+        if "```python" in response_content:
+            response_content = response_content[response_content.find("```python")+10:]
+        if response_content.endswith("```"):
+            response_content = response_content.rsplit("```", 1)[0]
+    
+    else:
+        return response_content
 
 ###############################################################################
 # Functions to get LLM clients
