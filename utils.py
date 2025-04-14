@@ -79,9 +79,14 @@ NOW_CONTINUE_TEXT = (
 )
 
 
+###############################################################################
+# Class to contain the state of the application
+###############################################################################
 class AppState:
     """
     Centralized container for application state.
+    This contains variables that are needed throughout the application but
+    are specific to an instance.
     """
     def __init__(self):
         # State variables that were previously globals
@@ -90,7 +95,6 @@ class AppState:
         self.execution_results = {}
         self.iteration_count = 0
         self.analysis_namespace = {}
-
 
 ###############################################################################
 # Pydantic model for the LLM's structured output
