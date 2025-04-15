@@ -66,7 +66,7 @@ def get_user_state():
     return user_states[session_id]
 
 ###############################################################################
-# Pydantic model for the LLM's structured output
+# Pydantic model for the LLM's structured output (no longer used!)
 ###############################################################################
 class LLMResponse(BaseModel):
     text_summary: str
@@ -378,7 +378,7 @@ def fix_json_escapes(json_str):
     
     return ''.join(result)
 
-# Add a function to safely parse JSON
+# Function to safely parse JSON
 def safe_json_loads(json_str):
     """
     Safely parses JSON by first fixing invalid escape sequences and control characters.

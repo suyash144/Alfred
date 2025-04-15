@@ -598,18 +598,20 @@
             </div>
 
             <div class="col-md-6">
-                <h3>Current Analysis</h3>
+                
                 <div id="current-analysis">
                     <div id="summary-section" style="display: none;">
-                        <h4>Summary</h4>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h3>Current Analysis</h3>
+                            <button id="action-btn" class="btn btn-warning">Analyse</button>
+                        </div>
                         <div id="summary-content" class="mb-4 p-3 border rounded"></div>
                     </div>
 
                     <div id="feedback-section" style="display: none;">
                         <h4>Provide Feedback</h4>
                         <textarea id="feedback-input" class="form-control feedback-input mb-2"
-                            placeholder="Enter your feedback here..."></textarea>
-                        <button id="action-btn" class="btn btn-warning">Analyse</button>
+                            placeholder="Enter your feedback for the model here..."></textarea>
                         <button id="send-feedback-btn" class="btn btn-info">Send Feedback</button>
                     </div>
 
@@ -1421,7 +1423,7 @@
                             $('#summary-section').show();
 
                             // Show feedback section
-                            $('#feedback-section').show();
+                            $('#feedback-section').slideDown();
 
                             // Refresh conversation history after a short delay
                             setTimeout(function() {

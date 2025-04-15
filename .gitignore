@@ -1,0 +1,5 @@
+*.pyc
+figs
+uploads
+analyses
+static

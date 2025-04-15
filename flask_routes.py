@@ -289,83 +289,71 @@ def get_analysis():
     
     except Exception as e:
         # Separately handle errors stemming from API providers.
+        logger.error(f"Error getting analysis: {str(e)}")
         if model_name == "claude":                                          # Anthropic API Error codes 
             if "Error code: 429" in str(e):
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "API rate limit exceeded. Please try again later."
                 }), 429
             elif "Error code: 529" in str(e):
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "Anthropic API is temporarily overloaded. Please try again later."
                 }), 529
             else:
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": str(e)
                 })
         elif model_name=="4o" or model_name=="o1":                                                                # OpenAI API Error codes
             if "429" in str(e):
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "API rate limit or token quota exceeded. Please try again later."
                 }), 429
             elif "403" in str(e):
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "You are in an unsupported region to access the OpenAI API."
                 }), 403
             elif "401" in str(e):
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "API authentication failed. Please check your API key."
                 }), 401
             elif "500" in str(e) or "503" in str(e):
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "OpenAI servers are currently overloaded or experiencing issues. Please try again later."
                 }), 500
             else:
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": str(e)
                 })
         else:
             if "Error code: 429" in str(e):
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "API rate limit exceeded. Please try again later."
                 }), 429
             elif "Error code: 500" in str(e):
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "Error on Google's side. Could be because input context is too long."
                 }), 500
             elif "Error code: 403" in str(e):
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "API key is incorrect or not authorised to access the Gemini API."
                 }), 403
             elif "Error code: 503" in str(e):
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": "Gemini API is temporarily overloaded. Please try again later or switch to a different model."
                 }), 503
             else:
-                logger.error(f"Error getting analysis: {str(e)}")
                 return jsonify({
                     "status": "error",
                     "message": str(e)
