@@ -617,7 +617,7 @@
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <p>Processing...</p>
+                        <p id="processing-status">Processing...</p>
                     </div>
                 </div>
 
@@ -814,6 +814,10 @@
                     $('#uploadedFileInfo p').text('Selected Files:');
                 }
             });
+
+            function updateProcessingStatus(message) {
+                document.getElementById('processing-status').textContent = message;
+            }
 
             // Initialise dataset function
             $('#initialize-btn').click(function () {
@@ -1216,6 +1220,7 @@
                 codeExecutionInProgress = true;
 
                 console.log("Generating code...");
+                updateProcessingStatus("Generating code...");
 
                 executionId = Date.now().toString();
 
@@ -1227,10 +1232,11 @@
                         response_type: 'code',
                     },
                     success: function(analysisResponse) {
-                        if (analysisResponse.status === 'success') {
+                        if (analysisResponse.status === 'success' && analysisResponse.response) {
                             currentCode = analysisResponse.response;
                             
                             // Now that we have the code, execute it
+                            updateProcessingStatus("Executing code...");
                             
                             $.ajax({
                                 url: '/execute_code',
@@ -1329,6 +1335,8 @@
                                 
                                 setButtonState('analyse');
 
+                                updateProcessingStatus('Analysing latest results...')
+
                                 getNextAnalysis();
                                 
                             }
@@ -1381,14 +1389,14 @@
                     },
                     error: function (error) {
                         console.error("Error stopping execution:", error);
-                        alert('Error stopping execution: ' + (error.responseJSON ? error.responseJSON.message : 'Unknown error'));
+                        alert('Error stopping execution: ' + (error.responseJSON ? error.responseJSON.message : 'Wait for LLM to generate code, then stop execution.'));
                     }
                 });
             }
 
             function getNextAnalysis() {
                 $('.loading').show();
-                $('#feedback-section').hide();
+                $('#feedback-section').slideUp();
 
                 // Reset scrolling state to ensure auto-scroll to bottom for new analysis
                 scrollingState.active = false;

@@ -548,12 +548,6 @@ def call_llm_and_parse(client, prompt, MODEL_NAME, response_type):
         )
         # Return the parsed LLMResponse object
         return llm_response
-
-    elif response_type == "code":
-        if "```python" in response_content:
-            response_content = response_content[response_content.find("```python")+10:]
-        if response_content.endswith("```"):
-            response_content = response_content.rsplit("```", 1)[0]
     
     else:
         return response_content

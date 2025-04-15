@@ -259,13 +259,33 @@ def get_analysis():
 
         if response_type == "code":
             g.state.iteration_count += 1
+    
+            if "```python" in llm_response:
+                llm_response = llm_response[llm_response.find("```python")+10:]
+            if llm_response.endswith("```"):
+                llm_response = llm_response.rsplit("```", 1)[0]
         
-        logger.info(f"Successfully got analysis from {model_name}")
-        return jsonify({
-            "status": "success",
-            "response": llm_response,
-            "conversation_length": len(g.state.conversation_history)
-        })
+        if llm_response is None or len(llm_response) == 0:                  # try once again if LLM doesn't return anything
+            llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=g.state.MODEL_NAME, response_type=response_type)
+            if response_type == 'code':
+                if "```python" in llm_response:
+                    llm_response = llm_response[llm_response.find("```python")+10:]
+                if llm_response.endswith("```"):
+                    llm_response = llm_response.rsplit("```", 1)[0]
+        
+        if llm_response and len(llm_response) > 0:
+            logger.info(f"Successfully got analysis from {model_name}")
+            return jsonify({
+                "status": "success",
+                "response": llm_response,
+                "conversation_length": len(g.state.conversation_history)
+            })
+        else:
+            logger.info(f"No response from {model_name}")
+            return jsonify({
+                "status": "error",
+                "message": f"No response from {model_name}. Please try again."
+            })
     
     except Exception as e:
         # Separately handle errors stemming from API providers.
@@ -583,7 +603,7 @@ def stop_execution():
         logger.warning(f"Attempt to stop non-existent execution: {execution_id}")
         return jsonify({
             "status": "error",
-            "message": "No such execution found"
+            "message": "No such execution found. Wait for code to generate and then stop execution."
         }), 404
     
     logger.info(f"Stopping execution: {execution_id}")
