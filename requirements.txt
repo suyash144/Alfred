@@ -14,3 +14,4 @@ anthropic
 google-genai
 statsmodels
 umap
+ibllib
