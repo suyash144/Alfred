@@ -83,6 +83,18 @@ def init_data():
     # Check which data source is being used
     data_source = request.form.get('dataSource', 'auto')
     logger.info(f"Initialising with data source: {data_source}")
+
+    # Check if a custom prompt was provided
+    custom_prompt = request.form.get('customPrompt', '')
+    if custom_prompt:
+        logger.info("Custom prompt provided")
+        # Add the custom prompt as the first user prompt.
+        g.state.conversation_history.append({
+            "role": "user",
+            "type": "text",
+            "iteration": g.state.iteration_count,
+            "content": custom_prompt
+        })
     
     if data_source == 'auto':
         # Use the default auto-generated data
@@ -137,18 +149,6 @@ def init_data():
         
         # Process the uploaded files
         result = process_uploaded_files(file_info)
-        
-        # Check if a custom prompt was provided
-        custom_prompt = request.form.get('customPrompt', '')
-        if custom_prompt:
-            logger.info("Custom prompt provided")
-            # Add the custom prompt as the first user prompt.
-            g.state.conversation_history.append({
-                "role": "user",
-                "type": "text",
-                "iteration": g.state.iteration_count,
-                "content": custom_prompt
-            })
         
         return jsonify({
             "status": "success", 

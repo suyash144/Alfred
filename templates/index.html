@@ -538,8 +538,8 @@
                             </div>
                             <div class="tab-pane fade" id="upload-prompt" role="tabpanel" aria-labelledby="upload-prompt-tab">
                                 <div class="mb-3">
-                                    <input class="form-control" type="file" id="promptFile" accept=".txt">
-                                    <div class="form-text mt-2">Upload a .txt file containing your custom prompt.</div>
+                                    <input class="form-control" type="file" id="promptFile" accept=".txt,.md">
+                                    <div class="form-text mt-2">Upload a text or markdown file containing your custom prompt.</div>
                                     <div id="uploadedPromptPreview" class="mt-3 p-2 border rounded bg-light" style="display: none;">
                                         <h6 class="mb-1">Prompt Preview:</h6>
                                         <div id="promptPreviewContent" class="text-muted small"></div>
@@ -765,7 +765,7 @@
             // Handle custom prompt file upload
             $('#promptFile').change(function(e) {
                 const file = e.target.files[0];
-                if (file && file.type === "text/plain") {
+                if (file) {
                     const reader = new FileReader();
                     reader.onload = function(event) {
                         const content = event.target.result;
@@ -778,7 +778,7 @@
                     };
                     reader.readAsText(file);
                 } else {
-                    alert('Please select a valid .txt file.');
+                    alert('Please select a valid .txt or .md file.');
                     $(this).val(''); // Clear the input
                     $('#uploadedPromptPreview').hide();
                 }
