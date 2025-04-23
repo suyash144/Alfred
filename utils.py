@@ -469,11 +469,16 @@ def call_llm_and_parse(client, prompt, MODEL_NAME, response_type):
         ]
         completion = client.messages.create(
             model=MODEL_NAME,
-            system=SYSTEM_PROMPT,
+            system=[{
+                "type": "text",
+                "text": SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"}
+                }],
             messages=messages,
             max_tokens=5000
         )
         response_content = completion.content[0].text
+
         if response_type == "both":
             response_content = re.sub(r'^```json\s*|\s*```$', '', response_content, flags=re.MULTILINE)
             response_content = extract_json_dict(response_content)
