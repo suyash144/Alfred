@@ -36,6 +36,7 @@ SYSTEM_PROMPT = ("""
     When you import a library, use the syntax 'import [LIBRARY] as [ALIAS]' rather than 'from [LIBRARY] import *'. This avoids namespace conflicts and keeps the code readable.
     Use only the data provided. Do not simulate hypothetical data to act as a placeholder for data that was not provided.
     If you define a new variable or define a function, it will be accessible in future iterations.
+    It is very important that your code does not raise errors. You can avoid errors by checking types of variables before using them, and using try/except statements. 
                  
     **Guideline: Debugging Approach:** If errors occur in generated code, prioritize proposing small, targeted sanity checks to precisely isolate the issue rather than immediately attempting a full rewrite. Leverage the persistent Python environment (variables, functions defined previously remain available).
     **Prompt Improvement Suggestion:**
