@@ -256,22 +256,15 @@ def get_analysis():
         # Build prompt and call LLM
         prompt = build_llm_prompt(g.state.conversation_history, g.state.MODEL_NAME, response_type=response_type)
         llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=g.state.MODEL_NAME, response_type=response_type)
+        llm_response = process_llm_response(llm_response, response_type)
 
+        # Increment the iteration if code was generated.
         if response_type == "code":
             g.state.iteration_count += 1
-    
-            if "```python" in llm_response:
-                llm_response = llm_response[llm_response.find("```python")+10:]
-            if llm_response.endswith("```"):
-                llm_response = llm_response.rsplit("```", 1)[0]
         
         if llm_response is None or len(llm_response) == 0:                  # try once again if LLM doesn't return anything
             llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=g.state.MODEL_NAME, response_type=response_type)
-            if response_type == 'code':
-                if "```python" in llm_response:
-                    llm_response = llm_response[llm_response.find("```python")+10:]
-                if llm_response.endswith("```"):
-                    llm_response = llm_response.rsplit("```", 1)[0]
+            llm_response = process_llm_response(llm_response, response_type)
         
         if llm_response and len(llm_response) > 0:
             logger.info(f"Successfully got analysis from {model_name}")
@@ -737,6 +730,7 @@ def send_feedback():
     
         prompt = build_llm_prompt(g.state.conversation_history, g.state.MODEL_NAME, response_type="feedback")
         llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=g.state.MODEL_NAME, response_type="feedback")
+        llm_response = process_llm_response(llm_response, response_type="feedback")
 
         g.state.iteration_count += 1
         

@@ -558,6 +558,26 @@ def call_llm_and_parse(client, prompt, MODEL_NAME, response_type):
         return response_content
 
 ###############################################################################
+# Function to process LLM response
+###############################################################################
+def process_llm_response(response, response_type):
+    """
+    Process the response based on the type. This ensures the response is in the correct format.
+    """
+    if response_type == "code":
+
+        if "```python" in response:
+            response = response[response.find("```python")+10:]
+        if response.endswith("```"):
+            response = response.rsplit("```", 1)[0]
+    
+    elif response_type == "text" or response_type == "feedback":
+        if "```python" in response:
+            response = response[:response.find("```python")]
+    
+    return response
+
+###############################################################################
 # Functions to get LLM clients
 ###############################################################################
 def get_client(model_name, api_key=None):
