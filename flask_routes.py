@@ -172,6 +172,7 @@ def process_uploaded_files(file_info):
         file_path = file['path']
         file_type = file['type']
         base_name = os.path.basename(file_path).rsplit('.', 1)[0]
+        base_name = re.sub('\W|^(?=\d)','_', base_name)                         # Clean up the base name for variable naming
         
         try:
             if file_type == 'csv':
@@ -696,7 +697,6 @@ def send_feedback():
 
     feedback = request.json.get('feedback', '')
     summary = request.json.get('summary', '')
-    code = request.json.get('code', '')
     iter = g.state.iteration_count
     
     logger.info(f"Feedback route - Current history length: {len(g.state.conversation_history)}")
@@ -707,12 +707,6 @@ def send_feedback():
         "type": "text",
         "iteration": iter,
         "content": summary
-    })
-    g.state.conversation_history.append({
-        "role": "assistant",
-        "type": "code",
-        "iteration": iter,
-        "content": "Proposed code:\n" + code
     })
     g.state.conversation_history.append({
         "role": "user",
@@ -731,8 +725,6 @@ def send_feedback():
         prompt = build_llm_prompt(g.state.conversation_history, g.state.MODEL_NAME, response_type="feedback")
         llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=g.state.MODEL_NAME, response_type="feedback")
         llm_response = process_llm_response(llm_response, response_type="feedback")
-
-        g.state.iteration_count += 1
         
         logger.info("Successfully got next analysis after feedback")
         
