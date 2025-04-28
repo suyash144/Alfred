@@ -1,25 +1,52 @@
-# Base image
+# Stage 1: Build React frontend
+FROM node:18 AS build-react
+
+# Set the working directory for the frontend build
+WORKDIR /app/frontend
+
+# Copy package.json and lock file first to leverage Docker cache
+COPY ./alfred-react-app/package.json ./alfred-react-app/package-lock.json* ./
+
+# Install frontend dependencies
+RUN npm install
+
+# Copy the rest of the React app source code
+COPY ./alfred-react-app/ ./
+
+# Build the React app for production
+RUN npm run build
+
+# Stage 2: Build Python backend and serve React build
 FROM python:3.11-slim
 
-# Set working directory
+# Set working directory for the Flask app
 WORKDIR /app
 
-# Copy requirements file
+# Copy requirements file first
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
 COPY app.py .
-COPY templates/ templates/
+COPY utils.py .
+COPY data_loader.py .
+COPY prompts.py .
+COPY flask_routes.py .
 
-# Expose port
+# Copy the built React app from the 'build-react' stage
+COPY --from=build-react /app/frontend/dist ./build
+
+# Make the necessary directories for the app to run
+RUN mkdir -p uploads analyses figs
+
+# Expose the port Flask runs on
 EXPOSE 5000
 
-ENV DEBUG=True
+# Set environment variables (DEBUG=True might be overridden by docker-compose)
+# ENV DEBUG=True
 
-# Command to run the application
-CMD ["python", "-u", "app.py"]
+# Command to run the application using a production server like gunicorn
+# Replace 'app:app' with 'your_filename:your_flask_instance' if different
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]

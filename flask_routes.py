@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file, g
+from flask import Flask, render_template, request, jsonify, send_from_directory, g
 import os
 import numpy as np
 import pandas as pd
@@ -11,11 +11,13 @@ import zipfile
 from werkzeug.utils import secure_filename
 from utils import *
 from data_loader import *
+from app import app
+from collections import defaultdict
+import shutil
 
 ###############################################################################
 # Flask routes
 ###############################################################################
-app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET', 'default_secret_key')
 
 @app.before_request
@@ -23,40 +25,6 @@ def load_user_state():
     g.state = get_user_state()
 
 logger.info("Click here to run Alfred: http://localhost:5000")
-
-@app.route('/')
-def index():
-    """Render the main index page"""
-    # Format conversation history for display
-    formatted_history = []
-    for entry in g.state.conversation_history:
-        role = entry.get("role", "")
-        content = entry.get("content", "")
-
-        if role == "figure":
-            # Handle figure entries differently
-            if isinstance(content, dict) and "image_url" in content:
-                logger.debug("Found figure with image_url in conversation history")
-            else:
-                logger.warning(f"Unexpected figure content structure: {content}")
-                
-            image_url = content.get("image_url", {}).get("url", "")
-            formatted_history.append({
-                "role": "figure",
-                "type": "figure",
-                "iteration": entry.get("iteration", 0),
-                "content": image_url
-            })
-        else:
-            # Handle text entries as before
-            formatted_history.append({
-                "role": role,
-                "type": entry.get("type", "text"),
-                "iteration": entry.get("iteration", 0),
-                "content": content
-            })
-    
-    return render_template('index.html', conversation_history=formatted_history)
 
 @app.route('/initialize', methods=['POST'])
 def init_data():
@@ -742,123 +710,182 @@ def send_feedback():
 
 @app.route('/save_analysis', methods=['POST'])
 def save_analysis():
-    """Save all analysis history to files in a structured folder"""
+    """Save all analysis history from g.state to files in a structured ZIP."""
+    if not hasattr(g, 'state') or not hasattr(g.state, 'conversation_history'):
+        logger.error("Attempted to save analysis, but no state or history found in g.")
+        return jsonify({"status": "error", "message": "No analysis state found to save."}), 400
+
+    logger.info("API route: /save_analysis called")
+    temp_dir = None # Initialize to None for finally block
     try:
-        # Get the data from the request
-        data = request.json
-        
-        # Create timestamp for folder name
+        # --- 1. Setup Folders ---
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        parent_folder = f"analysis_{timestamp}"
-        
-        # Create temporary directory structure
-        temp_dir = os.path.join("analyses", parent_folder)
+        analysis_name = f"analysis_{timestamp}" # Base name for folder and zip
+        # Create a temporary directory for staging files before zipping
+        # Place it inside 'analyses' which should exist (created by Dockerfile)
+        temp_dir = os.path.join("analyses", analysis_name)
         os.makedirs(temp_dir, exist_ok=True)
-        
-        # Create subfolders
+
         code_dir = os.path.join(temp_dir, "code")
         figures_dir = os.path.join(temp_dir, "figures")
-        
         os.makedirs(code_dir, exist_ok=True)
         os.makedirs(figures_dir, exist_ok=True)
-        
-        # Save conversation history as markdown
-        if data.get('text'):
-            with open(os.path.join(temp_dir, "conversation.md"), 'w') as f:
-                f.write(f"# Conversation History - {timestamp}\n\n")
-                for item in data['text']:
-                    f.write(f"## Iteration {item['iteration']} - {item['role']}\n\n")
-                    content = item['content'].replace('<br>', '\n')
-                    # Strip HTML tags
-                    content = re.sub(r'<.*?>', '', content)
-                    f.write(f"{content}\n\n")
-        
-        # Save code history as Python files
-        if data.get('code'):
-            for i, item in enumerate(data['code']):
-                content = item['content']
-                # Clean up any HTML or markdown code block syntax
-                content = re.sub(r'```python|```', '', content)
-                
-                filename = f"code_iteration_{item['iteration']}.py"
-                with open(os.path.join(code_dir, filename), 'w') as f:
-                    f.write(f"# Code from Iteration {item['iteration']}\n")
-                    f.write(f"# Generated by Alfred\n\n")
-                    f.write(content)
-        
-        # Save output history as markdown
-        if data.get('output'):
-            with open(os.path.join(temp_dir, "output.md"), 'w') as f:
-                f.write(f"# Code Output History - {timestamp}\n\n")
-                for item in data['output']:
-                    f.write(f"## Iteration {item['iteration']} - {item['role']}\n\n")
-                    content = item['content'].replace('<br>', '\n')
-                    # Strip HTML tags
-                    content = re.sub(r'<.*?>', '', content)
-                    f.write(f"```\n{content}\n```\n\n")
-        
-        # Save figures as PNG files
-        if data.get('figures'):
-            last_iter = 1
-            last_fignum = 0
-            for i, figure in enumerate(data['figures']):
-                src = figure['src']
-                iter = figure['iteration']
-                fignum = last_fignum + 1 if iter == last_iter else 1
-                if src.startswith('data:image/png;base64,'):
-                    # Extract the base64 data
-                    base64_data = src.split(',')[1]
-                    image_data = base64.b64decode(base64_data)
-                    
-                    filename = f"iteration_{iter}_figure_{fignum}.png"
-                    with open(os.path.join(figures_dir, filename), 'wb') as f:
-                        f.write(image_data)
-                    
-                    last_fignum = fignum
-                    last_iter = iter
-        
-        # Save metadata as JSON
-        metadata_file = open(os.path.join(temp_dir, "metadata.json"), 'w')
-        metadata = {
-            "model": g.state.model,
-            "data": list(g.state.analysis_namespace.keys())
-        }
-        json.dump(metadata, metadata_file, indent=6)
+        logger.debug(f"Created temporary directory structure in: {temp_dir}")
 
-        # Create a zip file containing all folders
-        memory_file = io.BytesIO()
+        # --- 2. Process History from g.state ---
+        history = g.state.conversation_history
+        figure_counter = defaultdict(int) # To count figures per iteration: figure_counter[iteration] -> count
+
+        # Open main markdown files
+        conversation_file_path = os.path.join(temp_dir, "conversation.md")
+        output_file_path = os.path.join(temp_dir, "output.md")
+
+        with open(conversation_file_path, 'w', encoding='utf-8') as f_conv, \
+             open(output_file_path, 'w', encoding='utf-8') as f_out:
+
+            f_conv.write(f"# Conversation History - {timestamp}\n\n")
+            f_out.write(f"# Code Output History - {timestamp}\n\n")
+
+            for entry in history:
+                role = entry.get("role", "unknown")
+                content = entry.get("content", "")
+                entry_type = entry.get("type", "text") # Default to text
+                iteration = entry.get("iteration", 0)
+
+                if role == "figure" and entry_type != "figure": entry_type = "figure"
+                elif role == "tool_code" and entry_type != "code": entry_type = "code"
+                elif role == "tool_output" and entry_type != "output": entry_type = "output"
+
+                if entry_type == 'text':
+                    f_conv.write(f"## Iteration {iteration} - {role.upper()}\n\n")
+                    # Perform necessary cleaning
+                    cleaned_content = content.replace('<br>', '\n') # Basic newline conversion
+                    cleaned_content = re.sub(r'<.*?>', '', cleaned_content) # Strip potential HTML tags
+                    f_conv.write(f"{cleaned_content}\n\n")
+
+                elif entry_type == 'code':
+                    # Clean up code block markers if content includes them
+                    # (adjust regex if needed based on actual content format)
+                    code_content = re.sub(r'^```(?:python)?\s*|```\s*$', '', content, flags=re.MULTILINE).strip()
+                    if code_content.startswith("Proposed code:"):
+                        code_content = code_content[14:]
+                    filename = f"code_iteration_{iteration}.py" # Assuming one code block per iteration entry
+                    code_file_path = os.path.join(code_dir, filename)
+                    with open(code_file_path, 'w', encoding='utf-8') as f_code:
+                        f_code.write(f"# Code from Iteration {iteration}\n")
+                        f_code.write(f"# Generated by Alfred\n\n")
+                        f_code.write(code_content)
+
+                elif entry_type == 'output':
+                    f_out.write(f"## Iteration {iteration} - {role.upper()}\n\n")
+                     # Perform necessary cleaning (similar to original)
+                    cleaned_content = content.replace('<br>', '\n')
+                    cleaned_content = re.sub(r'<.*?>', '', cleaned_content) # Strip potential HTML tags
+                    f_out.write(f"```\n{cleaned_content}\n```\n\n")
+
+                elif entry_type == 'figure':
+                    if isinstance(content, str) and content.startswith('data:image/png;base64,'):
+                        try:
+                            base64_data = content.split(',', 1)[1]
+                            image_data = base64.b64decode(base64_data)
+
+                            figure_counter[iteration] += 1 # Increment counter for this iteration
+                            fig_num = figure_counter[iteration]
+                            filename = f"iteration_{iteration}_figure_{fig_num}.png"
+                            figure_file_path = os.path.join(figures_dir, filename)
+
+                            with open(figure_file_path, 'wb') as f_fig:
+                                f_fig.write(image_data)
+                        except (IndexError, base64.binascii.Error, IOError) as img_err:
+                            logger.warning(f"Could not process/save figure data for iteration {iteration}: {img_err}. Content: {content[:100]}...")
+                    else:
+                        logger.warning(f"Skipping figure for iteration {iteration}: Content is not a valid base64 PNG data URI. Content: {str(content)[:100]}...")
+
+
+        # --- 3. Save Metadata ---
+        metadata_file_path = os.path.join(temp_dir, "metadata.json")
+        metadata = {
+            "timestamp": timestamp,
+            "model": getattr(g.state, 'MODEL_NAME', 'unknown'), # Safely access model
+            # Provide data keys if available in g.state, otherwise empty list
+            "data_keys": list(getattr(g.state, 'analysis_namespace', {}).keys())
+        }
+        with open(metadata_file_path, 'w', encoding='utf-8') as f_meta:
+            json.dump(metadata, f_meta, indent=4) # Use indent=4 for readability
+
+        logger.debug("Finished processing history, metadata saved.")
+
+        # --- 4. Create Zip File ---
+        zip_filename = f"{analysis_name}.zip"
+        # Save ZIP file directly into the 'analyses' directory
+        zip_filepath = os.path.join("analyses", zip_filename)
+
+        memory_file = io.BytesIO() # Create zip in memory first
         with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # Walk through the directory and add all files to the zip
+            base_dir = os.path.dirname(temp_dir) # e.g., 'analyses'
             for root, dirs, files in os.walk(temp_dir):
                 for file in files:
                     file_path = os.path.join(root, file)
-                    arcname = os.path.relpath(file_path, os.path.dirname(temp_dir))
+                    # Arcname is the path inside the zip file, relative to the analysis folder
+                    arcname = os.path.relpath(file_path, base_dir)
                     zf.write(file_path, arcname)
-        
-        # Reset the file pointer to the beginning
         memory_file.seek(0)
-        
-        # Save the zip file
-        zip_path = os.path.join("static", f"{parent_folder}.zip")
-        with open(zip_path, 'wb') as f:
-            f.write(memory_file.read())
-        
-        # Return the URL for downloading the zip file
+
+        # Write the in-memory zip to the final file path
+        with open(zip_filepath, 'wb') as f_zip:
+            f_zip.write(memory_file.read())
+
+        logger.info(f"Analysis successfully zipped to: {zip_filepath}")
+
+        # --- 5. Return Download URL ---
+        # Use the secure filename for the download route URL component
+        safe_zip_filename = secure_filename(zip_filename)
+        download_url = f"/download_analysis/{safe_zip_filename}" # Use the dedicated download route
+
         return jsonify({
             "status": "success",
             "message": "Analysis saved successfully",
-            "download_url": f"/{zip_path}"
+            "download_url": download_url
         })
-        
+
     except Exception as e:
-        logger.error(f"Error saving analysis: {str(e)}")
+        logger.error(f"Error during save_analysis: {e}", exc_info=True) # Log full traceback
         return jsonify({
             "status": "error",
-            "message": str(e)
+            "message": f"An internal error occurred while saving the analysis: {e}"
         }), 500
+
+    finally:
+        # --- 6. Cleanup Temporary Directory ---
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+                logger.debug(f"Successfully removed temporary directory: {temp_dir}")
+            except Exception as cleanup_err:
+                logger.error(f"Error removing temporary directory {temp_dir}: {cleanup_err}")
     
-@app.route('/static/<path:filename>', methods=['GET'])
-def serve_static(filename):
-    """Serve static files like the generated zip"""
-    return send_file(os.path.join("static", filename), as_attachment=True)
+@app.route('/download_analysis/<filename>', methods=['GET'])
+def download_analysis_file(filename):
+    """Serves the saved analysis file for download."""
+    # Important: filename received here MUST be validated/sanitized
+    # Using secure_filename helps, but ensure it matches expected pattern too.
+    safe_filename = secure_filename(filename)
+    if safe_filename != filename or not filename.startswith("analysis_") or not filename.endswith(".zip"):
+         logger.warning(f"Attempt to download invalid filename: {filename}")
+         return jsonify({"status": "error", "message": "Invalid filename."}), 400
+
+    analyses_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'analyses')
+    file_path = os.path.join(analyses_dir, safe_filename)
+
+    # Check if file exists *after* constructing path from safe filename
+    if not os.path.isfile(file_path):
+         logger.error(f"Download request for non-existent file: {file_path}")
+         return jsonify({"status": "error", "message": "File not found."}), 404
+
+    try:
+        logger.info(f"Downloading analysis file: {safe_filename}")
+        return send_from_directory(analyses_dir, safe_filename, as_attachment=True)
+    except Exception as e:
+        logger.error(f"Error sending analysis file {safe_filename}: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": "Could not download file."}), 500
 

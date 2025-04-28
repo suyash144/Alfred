@@ -3,8 +3,6 @@ services:
     build: .
     ports:
       - "5000:5000"
-    volumes:
-      - .:/app
     environment:
       - DEBUG=True
       - API_KEY_ANT=${API_KEY_ANT}

@@ -51,7 +51,7 @@ class AppState:
         self.MODEL_NAME = "gemini-2.5-pro-exp-03-25"
 
 ###############################################################################
-# Pydantic model for the LLM's structured output
+# Get state that is specific to the user session
 ###############################################################################
 def get_user_state():
     """Fetch or create a new state for the current user."""
@@ -62,7 +62,7 @@ def get_user_state():
     
     # If this session does not have a state yet, create one
     if session_id not in user_states:
-        user_states[session_id] = AppState()  # Assuming AppState is your Alfred state container
+        user_states[session_id] = AppState()
     return user_states[session_id]
 
 ###############################################################################
