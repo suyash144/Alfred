@@ -1605,7 +1605,7 @@
                     error: function (error) {
                         $('.loading').hide();
                         console.error("Analysis error:", error);
-                        alert('Error getting analysis: ' + error.responseJSON ? error.responseJSON.message : 'Unknown error');
+                        alert('Error getting analysis: ' + (error.responseJSON ? error.responseJSON.message : 'Unknown error'));
                         
                         // Keep the Get Next Analysis button visible
                         if (buttonState !== 'analyse') {
@@ -1634,9 +1634,6 @@
                     clearInterval(window.historyRefreshInterval);
                 }
 
-                // Set up a less aggressive refresh interval
-                window.historyRefreshInterval = setInterval(function () {
-                }, 5000); // Every 5 seconds instead of 3
             });
 
             // Simple markdown to HTML converter (just for basic formatting)

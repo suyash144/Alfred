@@ -53,9 +53,11 @@ NOW_CONTINUE_TEXT = (
     "propose 5 or so open questions. Follow the format outlined in the system prompt. Do not write any code."
 )
 
-NOW_CONTINUE_CODE = (
-    "Now propose some code that will implement your proposed analysis. Return only the code, and nothing else."
-)
+NOW_CONTINUE_CODE = ("""
+    Now propose some code that will implement your proposed analysis. Return only the code, and nothing else. Do not write any text to confirm which analysis to do.
+    Assume that the user has agreed to the analysis steps you proposed in the previous step. Write code to do these analyses. #
+    Do not write any text outside of your python code as this will result in errors. 
+""")
 
 NOW_CONTINUE_BOTH = (
     "Now continue with a new step: Summarize what is known so far about the data, "

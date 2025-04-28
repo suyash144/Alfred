@@ -55,11 +55,8 @@ def index():
                 "iteration": entry.get("iteration", 0),
                 "content": content
             })
-
-    conversation_history = g.state.conversation_history
     
-    return render_template('index.html', 
-                          conversation_history=formatted_history)
+    return render_template('index.html', conversation_history=formatted_history)
 
 @app.route('/initialize', methods=['POST'])
 def init_data():
