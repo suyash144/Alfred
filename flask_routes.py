@@ -218,6 +218,15 @@ def get_analysis():
             model_name = "gemini"
             g.state.MODEL_NAME = "gemini-2.5-pro-exp-03-25"
             logger.info("Using default model: Gemini 2.5 Pro")
+
+        if response_type == "code":
+            # Log the user command in conversation history
+            g.state.conversation_history.append({
+                "role": "user", 
+                "type": "text",
+                "iteration": g.state.iteration_count,
+                "content": "Analyse"
+            })
         
         # Build prompt and call LLM
         prompt = build_llm_prompt(g.state.conversation_history, g.state.MODEL_NAME, response_type=response_type)
@@ -234,6 +243,13 @@ def get_analysis():
         
         if llm_response and len(llm_response) > 0:
             logger.info(f"Successfully got analysis from {model_name}")
+            if response_type == "text":
+                g.state.conversation_history.append({
+                    "role": "assistant", 
+                    "type": "text",
+                    "iteration": g.state.iteration_count,
+                    "content": llm_response
+                })
             return jsonify({
                 "status": "success",
                 "response": llm_response,
@@ -323,36 +339,12 @@ def execute_code():
     """Execute Python code in a separate process and capture outputs/figures"""
     
     code = request.json.get('code', '')
-    summary = request.json.get('summary', '')
     execution_id = request.json.get('execution_id')
     
     if not execution_id:
         execution_id = str(time.time())  # Generate an ID if not provided
     
     logger.info(f"Starting code execution with ID: {execution_id}")
-    
-    # First, add the summary and proposed code to conversation history
-    g.state.conversation_history.append({
-        "role": "assistant", 
-        "type": "text",
-        "iteration": g.state.iteration_count,
-        "content": summary
-    })
-    
-    g.state.conversation_history.append({
-        "role": "assistant",
-        "type": "code",
-        "iteration": g.state.iteration_count,
-        "content": "Proposed code:\n" + code
-    })
-    
-    # Add execution record to history
-    g.state.conversation_history.append({
-        "role": "user",
-        "type": "text",
-        "iteration": g.state.iteration_count,
-        "content": "Execute code"
-    })
     
     # Initialize result storage
     g.state.execution_results[execution_id] = {

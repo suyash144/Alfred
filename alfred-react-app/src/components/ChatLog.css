@@ -105,7 +105,7 @@
 .message-bubble .code-block {
     margin-top: 10px;
     margin-bottom: 5px; /* Adjust spacing around code */
-    /* Override default code block margins if needed */
+    width: 100%;
 }
 .message-bubble .code-header {
     padding: 8px 12px;
@@ -116,6 +116,7 @@
     background-color: #f1f3f5;
     border-top-left-radius: 5px;
     border-top-right-radius: 5px;
+    width: 100%;
 }
 .message-bubble .code-line-count {
   font-size: 0.85rem;
@@ -130,6 +131,7 @@
 
 .markdown-body {
   line-height: 1.6;
+  font-size: 1em;
 }
 .markdown-body p {
   margin-bottom: 0.5rem; /* Space between paragraphs */
@@ -155,6 +157,20 @@
    margin: 0;
    font-size: inherit;
    border-radius: 0;
+}
+
+.markdown-body h1 { font-size: 1.75em; }
+.markdown-body h2 { font-size: 1.5em; }
+.markdown-body h3 { font-size: 1.25em; }
+.markdown-body h4 { font-size: 1.1em; }
+.markdown-body h5 { font-size: 1em; font-weight: bold; }
+.markdown-body h6 { font-size: 1em; font-style: italic; }
+.markdown-body p,
+.markdown-body li,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote {
+  font-size: 1em;
 }
 
 .figure-content img.figure-image {

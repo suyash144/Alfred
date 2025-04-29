@@ -72,7 +72,12 @@ const ChatLog = ({ history = [], expandedCodeBlocks, onToggleCodeExpand, onImage
                  }
                 return (
                     <div key={`output-${index}`} className="chat-content output-content">
-                        <pre>{outputContent}</pre>
+                        <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeRaw]}
+                        >
+                            {outputContent}
+                        </ReactMarkdown>
                     </div>
                 );
             case 'figure':
@@ -119,11 +124,11 @@ const ChatLog = ({ history = [], expandedCodeBlocks, onToggleCodeExpand, onImage
             const itemIsToolResponse = item.type === 'code' || item.type === 'output' || item.type === 'figure';
 
             // Start a new assistant group if:
-            // 1. No current group exists
+            // 1. No current group exists or we are in iteration 0 (which is data inventory)
             // 2. The iteration changes
             // 3. We encounter assistant text, and the current group is already a tool response group
             // 4. We encounter a tool response, and the current group is already a text group
-             if (!currentAssistantGroup ||
+             if (!currentAssistantGroup || currentAssistantGroup.iteration == 0 ||
                  currentAssistantGroup.iteration !== itemIteration ||
                  (itemIsText && currentAssistantGroup.type === 'tool_response') ||
                  (itemIsToolResponse && currentAssistantGroup.type === 'text') )
