@@ -18,14 +18,16 @@ import {
 // Import Components
 import ApiConfig from './components/ApiConfig';
 import DataSourceSelector from './components/DataSourceSelector';
-import HistoryPanel from './components/HistoryPanel';
-import CurrentAnalysis from './components/CurrentAnalysis';
-import ExecutionOutput from './components/ExecutionOutput';
-import FiguresDisplay from './components/FiguresDisplay';
+import ChatLog from './components/Chatlog.jsx';
+import ChatInputArea from './components/ChatInputArea';
+// import CurrentAnalysis from './components/CurrentAnalysis';
+// import ExecutionOutput from './components/ExecutionOutput';
+// import FiguresDisplay from './components/FiguresDisplay';
 import ImageModal from './components/ImageModal';
 
 // Import CSS
-import './App.css'; // If you have custom App-specific styles
+import './App.css';
+import './components/ChatLog.css';
 
 function App() {
     // --- State Variables ---
@@ -45,8 +47,6 @@ function App() {
     const [currentSummary, setCurrentSummary] = useState('');
     // const [currentCode, setCurrentCode] = useState(''); // Maybe not needed if code is just in history? Re-add if needed.
     const [feedbackInput, setFeedbackInput] = useState('');
-    const [executionOutput, setExecutionOutput] = useState('');
-    const [currentFigures, setCurrentFigures] = useState([]); // Array of { data: base64string }
 
     const [buttonState, setButtonState] = useState('analyse'); // 'analyse', 'stop'
     const [executionId, setExecutionId] = useState(null);
@@ -67,15 +67,13 @@ function App() {
     const clearExecutionState = () => {
         setCodeExecutionInProgress(false);
         setExecutionId(null);
-        setExecutionOutput('');
-        setCurrentFigures([]);
         if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
             pollIntervalRef.current = null;
         }
     };
 
-    const resetUIState = () => {
+    const resetUIState = useCallback(() => {
         setIsInitialized(false);
         setIsLoading(false);
         setProcessingStatus('');
@@ -92,7 +90,7 @@ function App() {
         // setUseCustomPrompt(false);
         // setCustomPromptText('');
         // setPromptFile(null);
-    };
+    }, [clearExecutionState]);
 
     const updateLoading = (loading, status = '') => {
         setIsLoading(loading);
@@ -104,11 +102,11 @@ function App() {
         const response = await getHistoryApi();
         if (response.status === 'success' && response.data?.history) {
             // Only update if content differs to avoid unnecessary re-renders
-            if (JSON.stringify(history) !== JSON.stringify(response.data.history)) {
-                 setHistory(response.data.history);
+            if (history.length !== response.data.history.length || JSON.stringify(history) !== JSON.stringify(response.data.history)) {
+                setHistory(response.data.history);
             }
         }
-    }, [isLoading, codeExecutionInProgress, history]); // Add history to dependencies
+    }, [isLoading, history]);
 
     // --- Effects ---
 
@@ -152,10 +150,6 @@ function App() {
                          clearInterval(pollIntervalRef.current);
                          pollIntervalRef.current = null;
                          setCodeExecutionInProgress(false);
-                         // Update output and figures *before* getting next analysis
-                         setExecutionOutput(output || '');
-                         setCurrentFigures(figures || []);
-                         // Fetch history immediately to include output/figures
                          await fetchHistory();
 
                          // Now get the next text analysis
@@ -196,11 +190,11 @@ function App() {
                 pollIntervalRef.current = null;
             }
         };
-    }, [codeExecutionInProgress, executionId, fetchHistory, currentSummary]); // Add dependencies
+    }, [codeExecutionInProgress, executionId, fetchHistory]);
 
     // --- Event Handlers ---
 
-    const handleInitialize = async () => {
+    const handleInitialize = useCallback(async () => {
         if (isInitialized) {
             if (!window.confirm("Are you sure you want to restart? This will clear the current analysis session.")) {
                 return;
@@ -214,7 +208,7 @@ function App() {
             return;
         }
 
-        updateLoading(true, 'Initializing...');
+        updateLoading(true, 'Initialising...');
 
         const formData = new FormData();
         formData.append('apiKey', apiKey); // Send API key securely if needed (consider backend env var first)
@@ -262,89 +256,77 @@ function App() {
         } else {
             // Handle error in getting first analysis
             resetUIState(); // Go back to uninitialized state on failure
-            alert('Initialization succeeded, but failed to get initial analysis.');
+            alert('Initialisation succeeded, but failed to get initial analysis.');
         }
         updateLoading(false);
-    };
+    }, [isInitialized, resetUIState, dataSource, selectedFiles, apiKey, selectedModel, useCustomPrompt, customPromptText, promptFile, fetchHistory]);
 
-    const handleActionClick = async () => {
+    const handleActionClick = useCallback(async () => {
         if (buttonState === 'stop') {
             // --- Stop Execution ---
             if (!codeExecutionInProgress || !executionId) return;
             updateLoading(true, 'Stopping execution...');
             const stopResponse = await stopExecutionApi(executionId);
-            if (stopResponse.status === 'success') {
-                 setExecutionOutput((prev) => prev + "\n\nExecution stopped by user.");
-            }
             // Clear polling and reset state regardless of success/failure stopping
             clearExecutionState();
             setButtonState('analyse'); // Ready to try again
             updateLoading(false);
             await fetchHistory(); // Refresh history after stopping
         } else if (buttonState === 'analyse') {
-            // --- Execute Code ---
+            // 1. Get the Code first
             updateLoading(true, 'Generating code...');
-            setExecutionOutput(''); // Clear previous output
-            setCurrentFigures([]); // Clear previous figures
+            const codeAnalysisResponse = await getAnalysisApi('code'); // Adds code to history on backend
 
-            const analysisResponse = await getAnalysisApi('code');
-            if (analysisResponse.status === 'success' && analysisResponse.data?.response) {
-                const codeToExecute = analysisResponse.data.response;
-                // setCurrentCode(codeToExecute); // Store if needed
+            // Fetch history immediately to show the code bubble
+            await fetchHistory();
 
+            if (codeAnalysisResponse.status === 'success' && codeAnalysisResponse.data?.response) {
+                const codeToExecute = codeAnalysisResponse.data.response;
                 const newExecutionId = Date.now().toString();
                 setExecutionId(newExecutionId);
 
+                // 2. Execute the Code (Execution results/output/figures added later via polling/history)
                 updateLoading(true, 'Executing code...');
-                const executeResponse = await executeCodeApi(codeToExecute, currentSummary, newExecutionId);
+                const executeResponse = await executeCodeApi(codeToExecute, currentSummary, newExecutionId); // Pass summary if needed
 
                 if (executeResponse.status === 'success') {
-                    setCodeExecutionInProgress(true); // Start polling
-                    setButtonState('stop'); // Change button to Stop
-                    // Loading state will be managed by polling effect
+                    setCodeExecutionInProgress(true); // Start polling for results
+                    setButtonState('stop');
+                    // Loading state ('Executing code...') managed by polling effect until complete
                 } else {
                     // Failed to start execution
                     clearExecutionState();
                     setButtonState('analyse');
                     updateLoading(false);
-                    // Error already alerted
-                    await fetchHistory(); // Update history even on failure
+                    // Fetch history again in case backend added an error message during failed exec start
+                    await fetchHistory();
                 }
             } else {
                 // Failed to get code
                 updateLoading(false);
-                // Error already alerted
+                setButtonState('analyse'); // Allow retry
+                // Fetch history in case backend added an error message
+                await fetchHistory();
             }
         }
-    };
+    }, [buttonState, codeExecutionInProgress, executionId, clearExecutionState, fetchHistory, currentSummary]);
 
-    const handleSendFeedback = async () => {
-        if (!feedbackInput.trim()) {
-            alert('Please enter feedback.');
-            return;
-        }
-        updateLoading(true, 'Sending feedback...');
-        setExecutionOutput(''); // Clear output/figures when feedback is sent
-        setCurrentFigures([]);
+    const handleSendFeedback = useCallback(async () => {
+        if (!feedbackInput.trim()) { alert('Please enter feedback.'); return; }
+        updateLoading(true, 'Sending feedback & getting analysis...');
+        // Backend adds feedback to history
+        const response = await sendFeedbackApi(feedbackInput, currentSummary);
 
-        const response = await sendFeedbackApi(feedbackInput, currentSummary /*, currentCode */); // Pass code if needed
-
-        if (response.status === 'success' && response.data?.response) {
-            setCurrentSummary(response.data.response);
-            setFeedbackInput(''); // Clear input
-            setButtonState('analyse'); // Ready for next execution
-        } else if (response.status === 'success') {
-            // Feedback sent, but no next analysis?
-             alert('Feedback sent, but no next analysis received.');
-             setFeedbackInput('');
-             setButtonState('analyse');
+        if (response.status === 'success') {
+            // The response might contain the next text analysis, but we rely on fetchHistory
+            setFeedbackInput('');
+            setButtonState('analyse'); // Ready for next code gen/execution step
         } else {
-             // Error sending feedback (already alerted)
-             // Keep feedback text so user doesn't lose it
+            setFeedbackInput(currentInput);
         }
         updateLoading(false);
-        await fetchHistory(); // Refresh history
-    };
+        await fetchHistory(); // Refresh history to show feedback and the new text analysis
+    }, [feedbackInput, currentSummary, fetchHistory]);
 
     const handleImageClick = (src) => {
         setModalImageSrc(src);
@@ -363,19 +345,9 @@ function App() {
         });
     };
 
-    const handleSaveAnalysis = async () => {
+    const handleSaveAnalysis = useCallback(async () => {
         setSaveStatus({ message: 'Preparing data...', type: 'info' });
-        // Use the current history state
-        const historyData = {
-            // Structure according to backend expectation
-             // Example: Reformat if backend needs { text: [], code: [], ... }
-             text: history.filter(e => e.type === 'text'),
-             code: history.filter(e => e.type === 'code'),
-             output: history.filter(e => e.type === 'output'),
-             figures: history.filter(e => e.type === 'figure').map(e => ({ iteration: e.iteration, src: e.content })) // Adjust based on backend
-        };
-
-        const response = await saveAnalysisApi({ history: history }); // Send the raw history if backend processes it
+        const response = await saveAnalysisApi({ history: history }); // Send the raw history
 
          if (response.status === 'success' && response.data?.download_url) {
             setSaveStatus({ message: 'Success! Starting download...', type: 'success' });
@@ -384,135 +356,65 @@ function App() {
         } else {
             setSaveStatus({ message: response.message || 'Error saving analysis.', type: 'danger' });
         }
-    };
+    }, [history]);
 
 
     return (
-        <Container fluid className="mt-4">
+        <Container className="mt-4">
             <h1 className="mb-4">Alfred</h1>
-
-            {/* Configuration and Initialization */}
             <Row className="mb-4">
                 <Col>
-                    {/* Show config only if not initialized */}
                      <Collapse in={!isInitialized}>
-                         <div> {/* Required for Collapse */}
-                            <ApiConfig
-                                apiKey={apiKey}
-                                selectedModel={selectedModel}
-                                onApiKeyChange={setApiKey}
-                                onModelChange={setSelectedModel}
-                                isDisabled={isLoading}
-                            />
-                            <DataSourceSelector
-                                dataSource={dataSource}
-                                selectedFiles={selectedFiles}
-                                useCustomPrompt={useCustomPrompt}
-                                customPromptText={customPromptText}
-                                onDataSourceChange={setDataSource}
-                                onFilesChange={setSelectedFiles}
-                                onUseCustomPromptChange={setUseCustomPrompt}
-                                onCustomPromptTextChange={setCustomPromptText}
-                                onPromptFileChange={setPromptFile}
-                                isDisabled={isLoading}
-                             />
+                         <div>
+                            <ApiConfig apiKey={apiKey} selectedModel={selectedModel} onApiKeyChange={setApiKey} onModelChange={setSelectedModel} isDisabled={isLoading} />
+                            <DataSourceSelector dataSource={dataSource} selectedFiles={selectedFiles} useCustomPrompt={useCustomPrompt} customPromptText={customPromptText} onDataSourceChange={setDataSource} onFilesChange={setSelectedFiles} onUseCustomPromptChange={setUseCustomPrompt} onCustomPromptTextChange={setCustomPromptText} onPromptFileChange={setPromptFile} isDisabled={isLoading} />
                         </div>
                     </Collapse>
-
-                    <Button
-                        variant={isInitialized ? "danger" : "primary"}
-                        onClick={handleInitialize}
-                        disabled={isLoading}
-                        className="mt-3"
-                    >
-                        {isLoading && processingStatus.toLowerCase().includes('init') ? (
-                           <> <Spinner animation="border" size="sm" /> Initialising... </>
-                        ) : (
-                           isInitialized ? 'Restart Analysis' : 'Initialise Dataset'
-                        )}
+                    <Button variant={isInitialized ? "danger" : "primary"} onClick={handleInitialize} disabled={isLoading} className="mt-3">
+                        {isLoading && processingStatus.toLowerCase().includes('init') ? (<> <Spinner animation="border" size="sm" /> Initialising... </>) : (isInitialized ? 'Restart Analysis' : 'Initialise Dataset')}
                     </Button>
                 </Col>
             </Row>
 
-            {/* Main Content Area */}
+            {/* Main Content Area*/}
             <Row>
-                {/* History Columns */}
-                <Col md={6}>
-                     <HistoryPanel
-                        title="Conversation History"
-                        history={history}
-                        type="text"
-                    />
-                     <HistoryPanel
-                        title="Code History"
-                        history={history}
-                        type="code"
-                        expandedCodeBlocks={expandedCodeBlocks}
-                        onToggleCodeExpand={handleToggleCodeExpand}
-                    />
-                     <HistoryPanel
-                        title="Code Output History"
-                        history={history}
-                        type="output"
-                    />
-                     <HistoryPanel
-                        title="Figure History"
-                        history={history}
-                        type="figure"
-                        onImageClick={handleImageClick}
-                    />
-                </Col>
-
-                {/* Current Analysis and Output */}
-                <Col md={6}>
-                    <CurrentAnalysis
-                        summary={currentSummary}
-                        buttonState={buttonState}
-                        onActionClick={handleActionClick}
-                        feedbackInput={feedbackInput}
-                        onFeedbackChange={setFeedbackInput}
-                        onSendFeedback={handleSendFeedback}
-                        isLoading={isLoading}
-                        processingStatus={processingStatus}
-                        isInitialized={isInitialized}
-                    />
-                     <ExecutionOutput output={executionOutput} />
-                     <FiguresDisplay figures={currentFigures} onImageClick={handleImageClick} />
-                </Col>
-            </Row>
-
-             {/* Save Button */}
-            <Row className="mt-5 mb-4">
-                <Col className="text-center">
-                    <Button
-                        variant="primary"
-                        size="lg"
-                        onClick={handleSaveAnalysis}
-                        disabled={isLoading || !isInitialized || saveStatus.type === 'info'}
-                        id="save-analysis-btn"
-                    >
-                        {saveStatus.type === 'info' ? (
-                           <Spinner animation="border" size="sm" className="me-2" />
-                        ) : (
-                           <i className="bi bi-download me-2"></i>
-                        )}
-                        Save Complete Analysis
-                    </Button>
-                     {saveStatus.message && (
-                        <Alert variant={saveStatus.type === 'info' ? 'secondary' : saveStatus.type} className="mt-2 d-inline-block py-1 px-3" id="save-status">
-                            {saveStatus.message}
-                        </Alert>
+                <Col> {/* Use full width */}
+                    {/* Container for Chat Log and Input */}
+                    {isInitialized && (
+                        <div className="main-chat-container bg-white shadow-sm"> {/* Added classes */}
+                            <ChatLog
+                                // Pass the raw history array
+                                history={history}
+                                expandedCodeBlocks={expandedCodeBlocks}
+                                onToggleCodeExpand={handleToggleCodeExpand}
+                                onImageClick={handleImageClick}
+                            />
+                            <ChatInputArea
+                                feedbackInput={feedbackInput}
+                                onFeedbackChange={(e) => setFeedbackInput(e.target.value)} // Pass simple handler
+                                onSendFeedback={handleSendFeedback}
+                                buttonState={buttonState}
+                                onActionClick={handleActionClick}
+                                isLoading={isLoading}
+                                isInitialized={isInitialized} // Pass for conditional render inside
+                                processingStatus={processingStatus}
+                            />
+                        </div>
                     )}
                 </Col>
             </Row>
 
+            <Row className="mt-5 mb-4">
+                <Col className="text-center">
+                    <Button variant="primary" size="lg" onClick={handleSaveAnalysis} disabled={isLoading || !isInitialized || saveStatus.type === 'info'} id="save-analysis-btn">
+                        {saveStatus.type === 'info' ? (<Spinner animation="border" size="sm" className="me-2" />) : (<i className="bi bi-download me-2"></i>)}
+                        Save Complete Analysis
+                    </Button>
+                     {saveStatus.message && (<Alert variant={saveStatus.type === 'info' ? 'secondary' : saveStatus.type} className="mt-2 d-inline-block py-1 px-3">{saveStatus.message}</Alert>)}
+                </Col>
+            </Row>
 
-            {/* Image Modal */}
-            <ImageModal
-                show={showImageModal}
-                src={modalImageSrc}
-                onClose={() => setShowImageModal(false)}
-            />
+            <ImageModal show={showImageModal} src={modalImageSrc} onClose={() => setShowImageModal(false)} />
         </Container>
     );
 }

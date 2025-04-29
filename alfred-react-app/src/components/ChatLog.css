@@ -1,0 +1,184 @@
+/* src/components/ChatLog.css */
+
+.chat-log-area {
+  height: 65vh; /* Adjust height as needed */
+  max-height: 700px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  display: flex;
+  flex-direction: column;
+  gap: 15px; /* Space between message groups */
+}
+
+.message-group {
+  display: flex;
+  max-width: 85%; /* Bubbles don't span full width */
+}
+
+.message-group.user-message {
+  align-self: flex-end; /* User messages on the right */
+  flex-direction: row-reverse; /* Align content to the right */
+}
+
+.message-group.assistant-message {
+  align-self: flex-start; /* Assistant messages on the left */
+}
+
+.message-bubble {
+  padding: 12px 18px;
+  border-radius: 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  word-wrap: break-word;
+}
+
+.message-group.user-message .message-bubble {
+  background-color: #dcf8c6; /* Light green for user */
+  border-bottom-right-radius: 5px; /* Typical chat bubble shape */
+}
+
+.message-group.assistant-message .message-bubble {
+  background-color: #ffffff; /* White for assistant */
+  border: 1px solid #eee;
+  border-bottom-left-radius: 5px; /* Typical chat bubble shape */
+}
+
+.iteration-label {
+  font-size: 0.75em;
+  color: #888;
+  margin-bottom: 8px;
+  font-weight: bold;
+  border-bottom: 1px dashed #eee;
+  padding-bottom: 4px;
+}
+
+.message-group.user-message .iteration-label {
+  text-align: right;
+}
+
+
+.chat-content {
+  margin-top: 8px;
+}
+
+.chat-content:first-child {
+  margin-top: 0;
+}
+
+/* Styling for different content types within bubble */
+.text-content {
+  line-height: 1.5;
+}
+.text-content p:last-child {
+    margin-bottom: 0; /* Remove extra space from markdown paragraphs */
+}
+
+.output-content pre {
+  background-color: #f0f0f0;
+  padding: 10px;
+  border-radius: 5px;
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 0.9em;
+  margin: 0; /* Remove default pre margin */
+}
+
+.figure-content {
+  margin-top: 10px;
+  text-align: center; /* Center image within its container */
+}
+
+.figure-content img {
+   border: 1px solid #eee;
+   background-color: #fff;
+   padding: 4px;
+   border-radius: 4px;
+   max-width: 100%; /* Ensure image fits bubble */
+   max-height: 300px; /* Limit image height */
+   object-fit: contain;
+}
+
+/* Ensure CodeBlock fits well */
+.message-bubble .code-block {
+    margin-top: 10px;
+    margin-bottom: 5px; /* Adjust spacing around code */
+    /* Override default code block margins if needed */
+}
+.message-bubble .code-header {
+    padding: 8px 12px;
+    border-bottom: 1px solid #e1e4e8;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #f1f3f5;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+}
+.message-bubble .code-line-count {
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.message-bubble .code-full pre {
+    max-height: 400px; /* Limit height inside chat */
+}
+
+.markdown-body {
+  line-height: 1.6;
+}
+.markdown-body p {
+  margin-bottom: 0.5rem; /* Space between paragraphs */
+}
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.markdown-body ul, .markdown-body ol {
+  margin-left: 20px;
+  margin-bottom: 0.5rem;
+}
+.markdown-body code { /* Inline code */
+  background-color: rgba(175, 184, 193, 0.2);
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  border-radius: 3px;
+  font-family: monospace;
+}
+.markdown-body pre > code { /* Code blocks handled by CodeBlock component, but just in case */
+   background-color: transparent;
+   padding: 0;
+   margin: 0;
+   font-size: inherit;
+   border-radius: 0;
+}
+
+.figure-content img.figure-image {
+  border: 1px solid #eee;
+  background-color: #fff;
+  padding: 4px;
+  border-radius: 4px;
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  display: block; /* Ensure it behaves like a block */
+  margin-top: 10px;
+  margin-left: auto; /* Center if needed, or remove */
+  margin-right: auto; /* Center if needed, or remove */
+  cursor: zoom-in !important; /* Ensure cursor override */
+}
+
+/* Ensure iteration label looks okay */
+.iteration-label {
+ font-size: 0.75em;
+ color: #888;
+ margin-bottom: 8px;
+ font-weight: bold;
+ border-bottom: 1px dashed #eee;
+ padding-bottom: 4px;
+ display: inline-block; /* Don't take full width */
+}

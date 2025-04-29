@@ -69,7 +69,7 @@ const DataSourceSelector = ({
     return (
         <Card className="data-source-selector">
             <Card.Body>
-                <Card.Title as="h4">Select Data Source</Card.Title>
+                <Card.Title as="h4">Select Data and Prompt</Card.Title>
                 <Form.Check
                     type="radio"
                     label="Use auto-generated test data"

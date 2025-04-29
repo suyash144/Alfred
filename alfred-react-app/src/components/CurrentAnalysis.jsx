@@ -23,7 +23,7 @@ const CurrentAnalysis = ({
     const getButtonVariant = () => {
         switch (buttonState) {
             case 'stop': return 'danger';
-            case 'analyse': return 'warning'; // Assuming 'analyse' means ready to execute
+            case 'analyse': return 'warning';
             default: return 'secondary'; // Fallback
         }
     };
@@ -49,7 +49,7 @@ const CurrentAnalysis = ({
                              id="action-btn" // Keep ID if needed for specific styling/testing
                              variant={getButtonVariant()}
                              onClick={onActionClick}
-                             disabled={isLoading || !isInitialized} // Disable when loading or not ready
+                             disabled={(isLoading && buttonState != 'stop') || !isInitialized} // Disable when loading or not ready
                         >
                              {getButtonText()}
                         </Button>

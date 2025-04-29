@@ -67,3 +67,64 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* Add to src/index.css or a new imported CSS file */
+
+/* Main container to hold ChatLog and ChatInputArea */
+.main-chat-container {
+  display: flex;
+  flex-direction: column;
+  /* Calculate height: viewport height minus header/footer/padding */
+  height: calc(85vh - 150px); /* Adjust 150px based on your header/footer heights */
+  min-height: 400px; /* Minimum height */
+  max-height: 750px; /* Maximum height */
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  overflow: hidden; /* Prevent content spilling */
+}
+
+/* Adjust ChatLog to fill space and scroll */
+.chat-log-area {
+  flex-grow: 1; /* Takes up available vertical space */
+  overflow-y: auto; /* Enables scrolling for messages */
+  padding: 15px 15px 5px 15px; /* Add some bottom padding */
+  background-color: #f9f9f9;
+  /* Remove fixed height if previously set */
+  height: auto;
+  max-height: none;
+  border: none; /* Border is now on main-chat-container */
+  border-radius: 0;
+  display: flex; /* Keep flex settings for messages */
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Styles for the input area at the bottom */
+.chat-input-area {
+  border-top: 1px solid #ccc;
+  background-color: #f8f9fa; /* Slightly different background */
+  padding: 10px 15px; /* Adjust padding */
+}
+
+/* Make textarea take available width */
+.chat-input-area .input-group {
+    align-items: flex-end; /* Align items to bottom for multi-line textarea */
+}
+
+.chat-input-area .chat-textarea {
+  /* Textarea takes most space */
+  /* flex-grow: 1;  -- Handled by InputGroup */
+  /* Ensure it resets height properly */
+  height: auto;
+}
+
+.chat-input-area .btn {
+  /* Vertically align buttons with single-line textarea */
+  /* align-self: center; -- Handled by input-group */
+  white-space: nowrap; /* Prevent button text wrapping */
+}
+
+.chat-input-area .action-button {
+    min-width: 100px; /* Give Analyse/Stop button some width */
+    text-align: center;
+}
