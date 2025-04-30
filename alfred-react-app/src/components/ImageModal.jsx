@@ -58,7 +58,6 @@ const ImageModal = ({ show, src, onClose }) => {
                          </>
                     )}
                  </Button>
-                <span className="image-info text-muted small me-auto ms-2">Click Save or Close</span>
                 <Button variant="secondary" onClick={onClose}>
                     Close
                 </Button>

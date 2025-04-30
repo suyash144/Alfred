@@ -203,10 +203,10 @@ def get_analysis():
         model_name = g.state.model
         client = get_client(model_name, g.state.api_key)
         if model_name == "o1":
-            logger.info("Using model: o1 (Note: Better but slower than GPT-4o)")
+            logger.info("Using model: o1")
             g.state.MODEL_NAME = "o1-2024-12-17"
         elif model_name == "claude":
-            logger.info("Using model: Claude 3.7 Sonnet (Note: Best responses)")
+            logger.info("Using model: Claude 3.7 Sonnet")
             g.state.MODEL_NAME = "claude-3-7-sonnet-20250219"
         elif model_name == "gemini":
             logger.info("Using model: Gemini 2.5 Pro (Note: Free but limited token rate)")
@@ -372,6 +372,13 @@ def execute_code():
         'connection': parent_conn,
         'start_time': time.time()
     }
+
+    g.state.conversation_history.append({
+        "role": "assistant",
+        "type": "code",
+        "iteration": user_state.iteration_count,
+        "content": code
+    })
     
     # Start the process
     process.start()

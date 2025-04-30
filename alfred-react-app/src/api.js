@@ -63,7 +63,6 @@ export const pollExecutionResultsApi = async (executionId) => {
     }
 };
 
-
 export const stopExecutionApi = async (executionId) => {
     try {
         const response = await axios.post(`${API_BASE_URL}/stop_execution`, { execution_id: executionId });

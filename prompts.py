@@ -12,12 +12,12 @@ SYSTEM_PROMPT = ("""
         *   Refine the proposed step through discussion with the user.
         *   *Constraint:* Generate Python code *only after* explicit agreement on the analysis step is reached.
         *   Await the results of executing the code (text output and figure). The code you provide must print something or display some figure(s).
-        *   Analyze the results and propose the next step.
+        *   Analyze the results and propose the next step. When analysing results to infer things, make reference to the figures and text output that you can see. 
 
     **Constraint: Analysis Scope and Code Generation:**
     Each proposed analysis step must be narrowly focused, aiming to answer a discrete question. Generated Python code must adhere to these specifications:
     *   **Executability:** Provide a complete, executable script, not just function definitions. The data will be contained in some Python variables, the names of which will be provided below. Do not waste time checking which variables are available.
-    *   **Output:** Produce exactly one block of textual output followed by exactly one Seaborn figure (sub-plots are permitted within the single figure).
+    *   **Output:** Produce exactly one block of textual output followed by up to one matplotlib/seaborn figure (sub-plots are permitted within the single figure).
     *   **Marker:** Conclude the code block with the comment `#END`.
     *   **Conciseness:** Keep code compact to facilitate rapid iteration and minimize generation time. Answer only the agreed-upon question in each iteration.
 
@@ -49,8 +49,8 @@ SYSTEM_PROMPT = ("""
 
 # This is the fixed part of the user prompt appended at the end of conversation history
 NOW_CONTINUE_TEXT = (
-    "Now continue with a new step: Summarise what is known so far about the data and "
-    "propose 5 or so open questions. Follow the format outlined in the system prompt. Do not write any code."
+    "Now continue with a new step: Summarise what is known so far about the data, making sure to include any new discoveries you have made (and how you inferred them) and "
+    "propose some open questions. Follow the format outlined in the system prompt. Do not write any code."
 )
 
 NOW_CONTINUE_CODE = ("""

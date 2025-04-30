@@ -98,7 +98,6 @@ function App() {
     };
 
      const fetchHistory = useCallback(async () => {
-        if (isLoading || codeExecutionInProgress) return; // Don't refresh during critical ops
         const response = await getHistoryApi();
         if (response.status === 'success' && response.data?.history) {
             // Only update if content differs to avoid unnecessary re-renders
@@ -151,6 +150,9 @@ function App() {
                          pollIntervalRef.current = null;
                          setCodeExecutionInProgress(false);
                          await fetchHistory();
+
+                         console.log(`Execution output: ${output}`);
+                         console.log("History after execution:", history);
 
                          // Now get the next text analysis
                          updateLoading(true, 'Analysing results...');
@@ -275,7 +277,7 @@ function App() {
         } else if (buttonState === 'analyse') {
             // 1. Get the Code first
             updateLoading(true, 'Generating code...');
-            const codeAnalysisResponse = await getAnalysisApi('code'); // Adds code to history on backend
+            const codeAnalysisResponse = await getAnalysisApi('code');
 
             // Fetch history immediately to show the code bubble
             await fetchHistory();
@@ -292,7 +294,6 @@ function App() {
                 if (executeResponse.status === 'success') {
                     setCodeExecutionInProgress(true); // Start polling for results
                     setButtonState('stop');
-                    await fetchHistory();
                 } else {
                     // Failed to start execution
                     clearExecutionState();
@@ -308,12 +309,13 @@ function App() {
                 // Fetch history in case backend added an error message
                 await fetchHistory();
             }
+            await fetchHistory();
         }
     }, [buttonState, codeExecutionInProgress, executionId, clearExecutionState, fetchHistory, currentSummary]);
 
     const handleSendFeedback = useCallback(async () => {
         if (!feedbackInput.trim()) { alert('Please enter feedback.'); return; }
-        updateLoading(true, 'Sending feedback & getting analysis...');
+        updateLoading(true, 'Loading...');
         // Backend adds feedback to history
         const response = await sendFeedbackApi(feedbackInput, currentSummary);
 
