@@ -68,7 +68,15 @@ button:focus-visible {
   }
 }
 
-/* Add to src/index.css or a new imported CSS file */
+.expandable-image {
+  cursor: zoom-in !important;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.expandable-image:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
 
 /* Main container to hold ChatLog and ChatInputArea */
 .main-chat-container {

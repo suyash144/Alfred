@@ -35,11 +35,10 @@ export const getAnalysisApi = async (responseType) => {
     }
 };
 
-export const executeCodeApi = async (code, summary, executionId) => {
+export const executeCodeApi = async (code, executionId) => {
      try {
         const response = await axios.post(`${API_BASE_URL}/execute_code`, {
             code,
-            summary,
             execution_id: executionId
         });
         return { status: 'success', data: response.data };

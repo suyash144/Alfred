@@ -35,8 +35,8 @@
 }
 
 .message-group.user-message .message-bubble {
-  background-color: #dcf8c6; /* Light green for user */
-  border-bottom-right-radius: 5px; /* Typical chat bubble shape */
+  background-color: #72d5e2;
+  border-bottom-right-radius: 5px;
 }
 
 .message-group.assistant-message .message-bubble {

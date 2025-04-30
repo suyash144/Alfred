@@ -653,18 +653,11 @@ def send_feedback():
     """Send user feedback and get next analysis"""
 
     feedback = request.json.get('feedback', '')
-    summary = request.json.get('summary', '')
     iter = g.state.iteration_count
     
     logger.info(f"Feedback route - Current history length: {len(g.state.conversation_history)}")
     
     # Add to conversation history
-    g.state.conversation_history.append({
-        "role": "assistant",
-        "type": "text",
-        "iteration": iter,
-        "content": summary
-    })
     g.state.conversation_history.append({
         "role": "user",
         "type": "text",
@@ -684,6 +677,13 @@ def send_feedback():
         llm_response = process_llm_response(llm_response, response_type="feedback")
         
         logger.info("Successfully got next analysis after feedback")
+
+        g.state.conversation_history.append({
+            "role": "assistant",
+            "type": "text",
+            "iteration": iter,
+            "content": llm_response
+        })
         
         # Return both the success status and the new analysis
         return jsonify({

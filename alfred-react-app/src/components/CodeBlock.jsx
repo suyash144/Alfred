@@ -13,7 +13,7 @@ const CodeBlock = ({ code, iteration, blockId, isExpanded, onToggleExpand }) => 
     return (
         <div className={`history-entry code-block expandable-code ${isExpanded ? '' : 'collapsed'}`} data-block-id={blockId}>
             <div className="code-header">
-                <strong>Iteration {iteration}:&nbsp;CODE</strong>
+                <strong>CODE</strong>
                 <span className="code-line-count">{codeLines} lines</span>
                 <Button
                     variant="outline-secondary"

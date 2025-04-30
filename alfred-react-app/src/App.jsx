@@ -287,12 +287,12 @@ function App() {
 
                 // 2. Execute the Code (Execution results/output/figures added later via polling/history)
                 updateLoading(true, 'Executing code...');
-                const executeResponse = await executeCodeApi(codeToExecute, currentSummary, newExecutionId); // Pass summary if needed
+                const executeResponse = await executeCodeApi(codeToExecute, newExecutionId); // Pass summary if needed
 
                 if (executeResponse.status === 'success') {
                     setCodeExecutionInProgress(true); // Start polling for results
                     setButtonState('stop');
-                    // Loading state ('Executing code...') managed by polling effect until complete
+                    await fetchHistory();
                 } else {
                     // Failed to start execution
                     clearExecutionState();
@@ -408,7 +408,7 @@ function App() {
                 <Col className="text-center">
                     <Button variant="primary" size="lg" onClick={handleSaveAnalysis} disabled={isLoading || !isInitialized || saveStatus.type === 'info'} id="save-analysis-btn">
                         {saveStatus.type === 'info' ? (<Spinner animation="border" size="sm" className="me-2" />) : (<i className="bi bi-download me-2"></i>)}
-                        Save Complete Analysis
+                        Save Analysis
                     </Button>
                      {saveStatus.message && (<Alert variant={saveStatus.type === 'info' ? 'secondary' : saveStatus.type} className="mt-2 d-inline-block py-1 px-3">{saveStatus.message}</Alert>)}
                 </Col>
