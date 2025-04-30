@@ -12,7 +12,7 @@ import './index.css'; // Your custom styles
 // Import API functions
 import {
     initializeApi, getAnalysisApi, executeCodeApi, pollExecutionResultsApi,
-    stopExecutionApi, sendFeedbackApi, getHistoryApi, saveAnalysisApi
+    stopExecutionApi, sendFeedbackApi, getHistoryApi, saveAnalysisApi, switchModelApi
 } from './api';
 
 // Import Components
@@ -20,6 +20,7 @@ import ApiConfig from './components/ApiConfig';
 import DataSourceSelector from './components/DataSourceSelector';
 import ChatLog from './components/Chatlog.jsx';
 import ChatInputArea from './components/ChatInputArea';
+import ModelSwitcherModal from './components/ModelSwitcherModal';
 // import CurrentAnalysis from './components/CurrentAnalysis';
 // import ExecutionOutput from './components/ExecutionOutput';
 // import FiguresDisplay from './components/FiguresDisplay';
@@ -56,6 +57,8 @@ function App() {
     const [modalImageSrc, setModalImageSrc] = useState('');
 
     const [expandedCodeBlocks, setExpandedCodeBlocks] = useState(new Set());
+
+    const [showModelSwitcher, setShowModelSwitcher] = useState(false);
 
     const [saveStatus, setSaveStatus] = useState({ message: '', type: '' }); // For save analysis feedback
 
@@ -258,7 +261,7 @@ function App() {
         } else {
             // Handle error in getting first analysis
             resetUIState(); // Go back to uninitialized state on failure
-            alert('Initialisation succeeded, but failed to get initial analysis.');
+            alert('Initialisation succeeded, but failed to get AI analysis. Please try a different model.');
         }
         updateLoading(false);
     }, [isInitialized, resetUIState, dataSource, selectedFiles, apiKey, selectedModel, useCustomPrompt, customPromptText, promptFile, fetchHistory]);
@@ -330,6 +333,49 @@ function App() {
         await fetchHistory(); // Refresh history to show feedback and the new text analysis
     }, [feedbackInput, currentSummary, fetchHistory]);
 
+    const handleSwitchModel = useCallback(() => {
+        setShowModelSwitcher(true);
+    }, []);
+
+    const handleSelectModel = useCallback(async (modelId) => {
+        if (modelId === selectedModel) {
+            setShowModelSwitcher(false);
+            return; // No change needed
+        }
+
+        let cleanName = '';
+        let backendName = '';
+
+        if (modelId === 'o1'){
+            cleanName = 'o1';
+            backendName = 'o1';
+        } else if (modelId === 'gpt4o'){
+            cleanName = 'GPT-4o';
+            backendName = '4o';
+        } else if (modelId === 'claude'){
+            cleanName = 'Claude 3.7 Sonnet';
+            backendName = 'claude';
+        } else if (modelId === 'gemini'){
+            cleanName = 'Gemini 2.5 Pro';
+            backendName = 'gemini';
+        }
+        
+        updateLoading(true, 'Switching model...');
+        setShowModelSwitcher(false);
+        
+        // Update the selected model
+        setSelectedModel(modelId);
+        
+        try {
+            await switchModelApi(backendName); // Call the API to switch model
+            updateLoading(false);
+        } catch (error) {
+            console.error('Error switching model:', error);
+            alert('Failed to switch model. Please try again.');
+            updateLoading(false);
+        }
+    }, [selectedModel]);
+
     const handleImageClick = (src) => {
         setModalImageSrc(src);
         setShowImageModal(true);
@@ -372,9 +418,29 @@ function App() {
                             <DataSourceSelector dataSource={dataSource} selectedFiles={selectedFiles} useCustomPrompt={useCustomPrompt} customPromptText={customPromptText} onDataSourceChange={setDataSource} onFilesChange={setSelectedFiles} onUseCustomPromptChange={setUseCustomPrompt} onCustomPromptTextChange={setCustomPromptText} onPromptFileChange={setPromptFile} isDisabled={isLoading} />
                         </div>
                     </Collapse>
-                    <Button variant={isInitialized ? "danger" : "primary"} onClick={handleInitialize} disabled={isLoading} className="mt-3">
-                        {isLoading && processingStatus.toLowerCase().includes('init') ? (<> <Spinner animation="border" size="sm" /> Initialising... </>) : (isInitialized ? 'Restart Analysis' : 'Initialise Dataset')}
-                    </Button>
+
+                    <div className="d-flex align-items-center mt-3">
+                        <Button 
+                            variant={isInitialized ? "danger" : "primary"} 
+                            onClick={handleInitialize} 
+                            disabled={isLoading}
+                            className="me-3" // Add right margin for spacing
+                        >
+                            {isLoading && processingStatus.toLowerCase().includes('init') ? 
+                                (<> <Spinner animation="border" size="sm" /> Initialising... </>) : 
+                                (isInitialized ? 'Restart Analysis' : 'Initialise Dataset')}
+                        </Button>
+                        
+                        {isInitialized && (
+                            <Button 
+                                variant="warning"
+                                onClick={handleSwitchModel} 
+                                disabled={isLoading}
+                            >
+                                Switch Model
+                            </Button>
+                        )}
+                    </div>
                 </Col>
             </Row>
 
@@ -416,6 +482,12 @@ function App() {
                 </Col>
             </Row>
 
+            <ModelSwitcherModal 
+                show={showModelSwitcher}
+                onClose={() => setShowModelSwitcher(false)}
+                onSelectModel={handleSelectModel}
+                currentModel={selectedModel}
+            />
             <ImageModal show={showImageModal} src={modalImageSrc} onClose={() => setShowImageModal(false)} />
         </Container>
     );

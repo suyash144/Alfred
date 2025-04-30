@@ -73,6 +73,27 @@ class LLMResponse(BaseModel):
     python_code: str
 
 ###############################################################################
+# Set model names needed for calling LLM clients
+###############################################################################
+def set_model_name(short_name):
+
+    if short_name == "o1":
+        logger.info("Using model: o1")
+        return "o1-2024-12-17"
+    elif short_name == "claude":
+        logger.info("Using model: Claude 3.7 Sonnet")
+        return "claude-3-7-sonnet-20250219"
+    elif short_name == "gemini":
+        logger.info("Using model: Gemini 2.5 Pro (Note: Free but limited token rate)")
+        return "gemini-2.5-pro-exp-03-25"
+    elif short_name == "4o":
+        logger.info("Using model: GPT-4o (Note: Usually the fastest)")
+        return "gpt-4o-2024-11-20"
+    else:
+        logger.info("Using default model: Gemini 2.5 Pro")
+        return "gemini-2.5-pro-exp-03-25"
+
+###############################################################################
 # Extract the actual base64 data from the data URL format
 ###############################################################################
 def extract_base64_from_data_url(data_url):
@@ -570,12 +591,56 @@ def process_llm_response(response, response_type):
             response = response[response.find("```python")+10:]
         if response.endswith("```"):
             response = response.rsplit("```", 1)[0]
+
+        # Catch missing imports
+        if "np." in response and "import numpy as np" not in response:
+            response = "import numpy as np\n" + response
+        if "pd." in response and "import pandas as pd" not in response:
+            response = "import pandas as pd\n" + response
     
     elif response_type == "text" or response_type == "feedback":
         if "```python" in response:
             response = response[:response.find("```python")]
     
     return response
+
+###############################################################################
+# Handle server-side API errors
+###############################################################################
+def API_error_handler(e, model_name):
+            
+    logger.error(f"Error getting analysis: {str(e)}")
+
+    if model_name == "claude":                                          # Anthropic API Error codes
+        if "429" in str(e):
+            return "API rate limit exceeded. Please try again later or switch model.", 429
+        elif "529" in str(e):
+            return "Anthropic API is temporarily overloaded. Please try again later or switch model.", 529
+        else:
+            return str(e), 400
+
+    elif model_name=="4o" or model_name=="o1":                                                                # OpenAI API Error codes
+        if "429" in str(e):
+            return "API rate limit or token quota exceeded. Please try again later or switch model.", 429
+        elif "403" in str(e):
+            return "You are in an unsupported region to access the OpenAI API. Please switch model.", 403
+        elif "401" in str(e):
+            return "API authentication failed. Please check your API key.", 401
+        elif "500" in str(e) or "503" in str(e):
+            return "OpenAI servers are currently overloaded or experiencing issues. Please try again later or switch model.", 500
+        else:
+            return  str(e), 400
+    else:
+        if "429" in str(e):
+            return "API rate limit exceeded. Please try again later or use a different model.", 429
+        elif "500" in str(e):
+            return "Error on Google's side. Try switching model.", 500
+        elif "403" in str(e):
+            return "API key is incorrect or not authorised to access the Gemini API.", 403
+        elif "503" in str(e):
+            return "Gemini API is temporarily overloaded. Please try again later or switch to a different model.", 503
+        else:
+            return str(e), 400
 
 ###############################################################################
 # Functions to get LLM clients

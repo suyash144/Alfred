@@ -1,7 +1,7 @@
 // src/api.js
 import axios from 'axios';
 
-const API_BASE_URL = ''; // Your Flask backend URL, often '/' if served together
+const API_BASE_URL = '';
 
 // Utility to handle errors
 const handleApiError = (error, defaultMessage) => {
@@ -89,6 +89,30 @@ export const getHistoryApi = async () => {
         // Don't alert on history refresh errors, just log
         console.error("Error refreshing history:", error);
         return { status: 'error', message: 'Failed to fetch history' };
+    }
+};
+
+export const switchModelApi = async (modelName) => {
+    try {
+        const response = await fetch('/switch_model', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ model: modelName }),  // Ensure 'model' parameter is in request body
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+            throw new Error(errorData.message || `Error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return { status: 'success', data };
+    } catch (error) {
+        console.error('Error in switchModelApi:', error);
+        alert(`Failed to switch model: ${error.message}`);
+        return { status: 'error', message: error.message };
     }
 };
 

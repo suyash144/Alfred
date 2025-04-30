@@ -51,15 +51,6 @@ def init_data():
 
     # Check if a custom prompt was provided
     custom_prompt = request.form.get('customPrompt', '')
-    if custom_prompt:
-        logger.info("Custom prompt provided")
-        # Add the custom prompt as the first user prompt.
-        g.state.conversation_history.append({
-            "role": "user",
-            "type": "text",
-            "iteration": g.state.iteration_count,
-            "content": custom_prompt
-        })
     
     if data_source == 'auto':
         # Use the default auto-generated data
@@ -71,6 +62,17 @@ def init_data():
             "iteration": g.state.iteration_count,
             "content": data_inv
         })
+
+        if custom_prompt:
+            logger.info("Custom prompt provided")
+            # Add the custom prompt as the first user prompt.
+            g.state.conversation_history.append({
+                "role": "user",
+                "type": "text",
+                "iteration": g.state.iteration_count,
+                "content": custom_prompt
+            })
+        
         return jsonify({"status": "success", "message": "Data initialised successfully"})
     
     elif data_source == 'custom':
@@ -113,7 +115,17 @@ def init_data():
             })
         
         # Process the uploaded files
-        result = process_uploaded_files(file_info)
+        process_uploaded_files(file_info)
+
+        if custom_prompt:
+            logger.info("Custom prompt provided")
+            # Add the custom prompt as the first user prompt.
+            g.state.conversation_history.append({
+                "role": "user",
+                "type": "text",
+                "iteration": g.state.iteration_count,
+                "content": custom_prompt
+            })
         
         return jsonify({
             "status": "success", 
@@ -202,22 +214,7 @@ def get_analysis():
     try:
         model_name = g.state.model
         client = get_client(model_name, g.state.api_key)
-        if model_name == "o1":
-            logger.info("Using model: o1")
-            g.state.MODEL_NAME = "o1-2024-12-17"
-        elif model_name == "claude":
-            logger.info("Using model: Claude 3.7 Sonnet")
-            g.state.MODEL_NAME = "claude-3-7-sonnet-20250219"
-        elif model_name == "gemini":
-            logger.info("Using model: Gemini 2.5 Pro (Note: Free but limited token rate)")
-            g.state.MODEL_NAME = "gemini-2.5-pro-exp-03-25"
-        elif model_name == "4o":
-            logger.info("Using model: GPT-4o (Note: Usually the fastest)")
-            g.state.MODEL_NAME = "gpt-4o-2024-11-20"
-        else:
-            model_name = "gemini"
-            g.state.MODEL_NAME = "gemini-2.5-pro-exp-03-25"
-            logger.info("Using default model: Gemini 2.5 Pro")
+        g.state.MODEL_NAME = set_model_name(model_name)
 
         if response_type == "code":
             # Log the user command in conversation history
@@ -264,75 +261,11 @@ def get_analysis():
     
     except Exception as e:
         # Separately handle errors stemming from API providers.
-        logger.error(f"Error getting analysis: {str(e)}")
-        if model_name == "claude":                                          # Anthropic API Error codes 
-            if "Error code: 429" in str(e):
-                return jsonify({
-                    "status": "error",
-                    "message": "API rate limit exceeded. Please try again later."
-                }), 429
-            elif "Error code: 529" in str(e):
-                return jsonify({
-                    "status": "error",
-                    "message": "Anthropic API is temporarily overloaded. Please try again later."
-                }), 529
-            else:
-                return jsonify({
-                    "status": "error",
-                    "message": str(e)
-                })
-        elif model_name=="4o" or model_name=="o1":                                                                # OpenAI API Error codes
-            if "429" in str(e):
-                return jsonify({
-                    "status": "error",
-                    "message": "API rate limit or token quota exceeded. Please try again later."
-                }), 429
-            elif "403" in str(e):
-                return jsonify({
-                    "status": "error",
-                    "message": "You are in an unsupported region to access the OpenAI API."
-                }), 403
-            elif "401" in str(e):
-                return jsonify({
-                    "status": "error",
-                    "message": "API authentication failed. Please check your API key."
-                }), 401
-            elif "500" in str(e) or "503" in str(e):
-                return jsonify({
-                    "status": "error",
-                    "message": "OpenAI servers are currently overloaded or experiencing issues. Please try again later."
-                }), 500
-            else:
-                return jsonify({
-                    "status": "error",
-                    "message": str(e)
-                })
-        else:
-            if "Error code: 429" in str(e):
-                return jsonify({
-                    "status": "error",
-                    "message": "API rate limit exceeded. Please try again later."
-                }), 429
-            elif "Error code: 500" in str(e):
-                return jsonify({
-                    "status": "error",
-                    "message": "Error on Google's side. Could be because input context is too long."
-                }), 500
-            elif "Error code: 403" in str(e):
-                return jsonify({
-                    "status": "error",
-                    "message": "API key is incorrect or not authorised to access the Gemini API."
-                }), 403
-            elif "Error code: 503" in str(e):
-                return jsonify({
-                    "status": "error",
-                    "message": "Gemini API is temporarily overloaded. Please try again later or switch to a different model."
-                }), 503
-            else:
-                return jsonify({
-                    "status": "error",
-                    "message": str(e)
-                })
+        error_msg, err_code = API_error_handler(e, model_name)
+        return jsonify({
+            "status": "error",
+            "message": error_msg
+        }), err_code
 
 @app.route('/execute_code', methods=['POST'])
 def execute_code():
@@ -678,6 +611,7 @@ def send_feedback():
     try:
         model_name = g.state.model
         client = get_client(model_name, g.state.api_key)
+        g.state.MODEL_NAME = set_model_name(model_name)
     
         prompt = build_llm_prompt(g.state.conversation_history, g.state.MODEL_NAME, response_type="feedback")
         llm_response = call_llm_and_parse(client, prompt, MODEL_NAME=g.state.MODEL_NAME, response_type="feedback")
@@ -706,6 +640,21 @@ def send_feedback():
             "history_length": len(g.state.conversation_history),
             "error": str(e)
         })
+
+@app.route('/switch_model', methods=['POST'])
+def switch_model():
+
+    model = request.json.get('model')
+    g.state.model = model
+    g.state.api_key = get_api_key(model)
+
+    if not g.state.api_key:
+        # add some way for the user to enter the API key
+        logger.error("API key is required")
+        return jsonify({"status": "error", "message": "API key is required"}), 400
+
+    else:
+        return jsonify({"status": "success", "message": f"Switched to model: {model}"}), 200
 
 @app.route('/save_analysis', methods=['POST'])
 def save_analysis():
