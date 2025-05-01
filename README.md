@@ -19,7 +19,7 @@ When you open the application, make sure to use the correct API key for the mode
 
 If you don't want to keep pasting your API key for each analysis, you can set API keys as environment variables and just select the model at runtime. 
 There are currently 4 supported LLMs from 3 different providers: 
- - GPT-4o and o1 from OpenAI
+ - GPT-4.1 and o1 from OpenAI
  - Claude 3.7 Sonnet from Anthropic
  - Gemini 2.5 Pro from Google
 

@@ -86,9 +86,9 @@ def set_model_name(short_name):
     elif short_name == "gemini":
         logger.info("Using model: Gemini 2.5 Pro (Note: Free but limited token rate)")
         return "gemini-2.5-pro-exp-03-25"
-    elif short_name == "4o":
-        logger.info("Using model: GPT-4o (Note: Usually the fastest)")
-        return "gpt-4o-2024-11-20"
+    elif short_name == "gpt":
+        logger.info("Using model: GPT-4.1")
+        return "gpt-4.1-2025-04-14"
     else:
         logger.info("Using default model: Gemini 2.5 Pro")
         return "gemini-2.5-pro-exp-03-25"
@@ -619,7 +619,7 @@ def API_error_handler(e, model_name):
         else:
             return str(e), 400
 
-    elif model_name=="4o" or model_name=="o1":                                                                # OpenAI API Error codes
+    elif model_name=="gpt" or model_name=="o1":                                                                # OpenAI API Error codes
         if "429" in str(e):
             return "API rate limit or token quota exceeded. Please try again later or switch model.", 429
         elif "403" in str(e):
@@ -654,7 +654,7 @@ def get_client(model_name, api_key=None):
             logger.error("No API key provided")
             raise ValueError("API_KEY is required")
     
-    if model_name=="4o" or model_name=="o1":
+    if model_name=="gpt" or model_name=="o1":
         return openai.OpenAI(api_key=api_key)
     elif model_name=="claude":
         client = anthropic.Anthropic(api_key=api_key)
@@ -664,7 +664,7 @@ def get_client(model_name, api_key=None):
         return client
     else:
         logger.error(f"Invalid model name: {model_name}")
-        raise ValueError("Invalid model name - choose 4o, o1, gemini or claude")
+        raise ValueError("Invalid model name - choose gpt, o1, gemini or claude")
 
 ###############################################################################
 # Function to get API key from environment variables
@@ -674,7 +674,7 @@ def get_api_key(model):
         return os.environ.get('API_KEY_ANT', None)
     elif model == "gemini":
         return os.environ.get('API_KEY_GEM', None)
-    elif model == "4o" or model == "o1":
+    elif model == "gpt" or model == "o1":
         return os.environ.get('API_KEY_OAI', None)
     else:
         return None

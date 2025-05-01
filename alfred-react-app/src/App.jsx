@@ -349,9 +349,9 @@ function App() {
         if (modelId === 'o1'){
             cleanName = 'o1';
             backendName = 'o1';
-        } else if (modelId === 'gpt4o'){
-            cleanName = 'GPT-4o';
-            backendName = '4o';
+        } else if (modelId === 'gpt'){
+            cleanName = 'GPT-4.1';
+            backendName = 'gpt';
         } else if (modelId === 'claude'){
             cleanName = 'Claude 3.7 Sonnet';
             backendName = 'claude';
