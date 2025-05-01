@@ -133,8 +133,18 @@ def init_data():
         })
     
     else:
-        logger.error(f"Invalid data source specified: {data_source}")
-        return jsonify({"status": "error", "message": "Invalid data source specified"})
+        if not custom_prompt:
+            logger.warning("User is not uploading data and no custom prompt provided")
+            return jsonify({
+                "status": "error", 
+                "message": "No data or prompt provided. Alfred needs data!"
+            })
+        else:
+            logger.error(f"User is not uploading data files.")
+            return jsonify({
+                "status": "success", 
+                "message": "Not uploading any data. Data access procedure should be specified in prompt."
+            })
 
 def process_uploaded_files(file_info):
     """Process uploaded files and store them in the analysis_namespace"""

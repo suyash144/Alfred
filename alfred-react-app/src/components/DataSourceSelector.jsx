@@ -91,6 +91,17 @@ const DataSourceSelector = ({
                     disabled={isDisabled}
                     className="mb-2"
                 />
+                <Form.Check
+                    type="radio"
+                    label="Don't upload files. I will explain how to access data in the prompt."
+                    name="dataSource"
+                    id="noData"
+                    value="none"
+                    checked={dataSource === 'none'}
+                    onChange={handleDataSourceRadio}
+                    disabled={isDisabled}
+                    className="mb-2"
+                />
 
                 <Collapse in={showFileUpload}>
                     <div id="file-upload-collapse"> {/* Required for Collapse */}
