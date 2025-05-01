@@ -136,7 +136,10 @@ def build_llm_prompt(conversation_history, MODEL_NAME, response_type):
     elif response_type == "both":
         now_cont = NOW_CONTINUE_BOTH
     else:
-        now_cont = NOW_CONTINUE_TEXT
+        if len(conversation_history) > 0:
+            now_cont = NOW_CONTINUE_TEXT
+        else:
+            now_cont = NOW_CONTINUE_INIT
     
     # Create the text prompt
     text_prompt = (
@@ -589,7 +592,7 @@ def process_llm_response(response, response_type):
 
         if "```python" in response:
             response = response[response.find("```python")+10:]
-        if response.endswith("```"):
+        if response.endswith("```") or response.endswith("```\n"):
             response = response.rsplit("```", 1)[0]
 
         # Catch missing imports

@@ -15,9 +15,6 @@ from app import app
 from collections import defaultdict
 import shutil
 
-###############################################################################
-# Flask routes
-###############################################################################
 app.secret_key = os.environ.get('FLASK_SECRET', 'default_secret_key')
 
 @app.before_request
@@ -140,7 +137,15 @@ def init_data():
                 "message": "No data or prompt provided. Alfred needs data!"
             })
         else:
-            logger.error(f"User is not uploading data files.")
+            logger.info(f"User is not uploading data files but there is a custom prompt.")
+
+            g.state.conversation_history.append({
+                "role": "user",
+                "type": "text",
+                "iteration": g.state.iteration_count,
+                "content": custom_prompt
+            })
+            
             return jsonify({
                 "status": "success", 
                 "message": "Not uploading any data. Data access procedure should be specified in prompt."

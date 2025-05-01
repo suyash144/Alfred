@@ -16,3 +16,7 @@ statsmodels
 umap
 ibllib
 gunicorn
+brainbox-ibl
+iblatlas
+iblutil
+ONE-api

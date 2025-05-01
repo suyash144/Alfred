@@ -101,13 +101,10 @@ export const switchModelApi = async (modelName) => {
             },
             body: JSON.stringify({ model: modelName }),  // Ensure 'model' parameter is in request body
         });
+
+        console.log("Switching model.")
         
         const data = await response.json();
-        if (!response.ok) {
-            const error = new Error(data.message || 'Failed to switch model');
-            error.status = response.status;
-            throw error;
-        }
 
         return { status: 'success', data };
     } catch (error) {
@@ -127,9 +124,6 @@ export const submitApiKeyApi = async (model, apiKey) => {
         });
         
         const data = await response.json();
-        if (!response.ok) {
-            throw new Error(data.message || 'Failed to store API key');
-        }
         
         return { status: 'success', data };
     } catch (error) {
