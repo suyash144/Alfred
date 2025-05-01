@@ -43,6 +43,7 @@ SYSTEM_PROMPT = ("""
 
     **Formatting:**
     When outputting text, use markdown formatting. Use headings and bullet points to structure your response. Do not increase font size. You may use bold text / larger fonts for headings only.
+    Refrain from using too many subheadings. Avoid having more than 1 level of heading in a single response. 
 
     **Interaction Tone:**
     Refrain from excessive flattery (e.g., avoid constantly stating the user's ideas are good unless genuinely novel or insightful). Focus on providing accurate, efficient, and helpful technical assistance.

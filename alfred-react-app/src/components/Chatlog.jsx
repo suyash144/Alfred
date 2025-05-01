@@ -33,13 +33,14 @@ const ChatLog = ({ history = [], expandedCodeBlocks, onToggleCodeExpand, onImage
         switch (item.type) {
             case 'text':
                 // Render Markdown content
+                const processedContent = (item.content || '').replace(/<br>/g, '\n');
                 return (
                     <div key={`text-${index}`} className="chat-content text-content markdown-body">
                         <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             rehypePlugins={[rehypeRaw]}
                         >
-                            {item.content || ''}
+                            {processedContent || ''}
                         </ReactMarkdown>
                     </div>
                 );
