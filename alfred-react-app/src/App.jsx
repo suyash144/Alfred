@@ -12,7 +12,7 @@ import './index.css'; // Your custom styles
 // Import API functions
 import {
     initializeApi, getAnalysisApi, executeCodeApi, pollExecutionResultsApi,
-    stopExecutionApi, sendFeedbackApi, getHistoryApi, saveAnalysisApi, switchModelApi
+    stopExecutionApi, sendFeedbackApi, getHistoryApi, saveAnalysisApi, switchModelApi, submitApiKeyApi
 } from './api';
 
 // Import Components
@@ -21,9 +21,7 @@ import DataSourceSelector from './components/DataSourceSelector';
 import ChatLog from './components/Chatlog.jsx';
 import ChatInputArea from './components/ChatInputArea';
 import ModelSwitcherModal from './components/ModelSwitcherModal';
-// import CurrentAnalysis from './components/CurrentAnalysis';
-// import ExecutionOutput from './components/ExecutionOutput';
-// import FiguresDisplay from './components/FiguresDisplay';
+import ApiKeyDialog from './components/ApiKeyDialog';
 import ImageModal from './components/ImageModal';
 
 // Import CSS
@@ -59,6 +57,9 @@ function App() {
     const [expandedCodeBlocks, setExpandedCodeBlocks] = useState(new Set());
 
     const [showModelSwitcher, setShowModelSwitcher] = useState(false);
+    const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+    const [pendingModelSwitch, setPendingModelSwitch] = useState(null);
+    const [apiKeyError, setApiKeyError] = useState('');
 
     const [saveStatus, setSaveStatus] = useState({ message: '', type: '' }); // For save analysis feedback
 
@@ -360,21 +361,58 @@ function App() {
             backendName = 'gemini';
         }
         
-        updateLoading(true, 'Switching model...');
         setShowModelSwitcher(false);
-        
-        // Update the selected model
-        setSelectedModel(modelId);
-        
+        updateLoading(true, `Switching to ${cleanName}...`);
         try {
-            await switchModelApi(backendName); // Call the API to switch model
+            // Try to switch models
+            await switchModelApi(backendName);
+            setSelectedModel(modelId);
             updateLoading(false);
         } catch (error) {
-            console.error('Error switching model:', error);
-            alert('Failed to switch model. Please try again.');
             updateLoading(false);
+
+            // Check if the error is due to missing API key
+            if (error.message && (
+                error.message.includes('API key') || 
+                error.message.includes('apiKey') || 
+                error.message.toLowerCase().includes('key required')
+            )) {
+                // Store the pending model change and show API key dialog
+                setPendingModelSwitch(backendName);
+                setApiKeyError(error.message);
+                setShowApiKeyDialog(true);
+            } else {
+                // For other errors, show a general error message
+                alert(`Failed to switch to ${cleanName}: ${error.message}`);
+            }
         }
-    }, [selectedModel]);
+        
+    }, [selectedModel, updateLoading]);
+
+    const handleApiKeySubmit = useCallback(async (apiKey) => {
+        if (!pendingModelSwitch) return;
+        
+        try {
+            // Call an API to store the API key and retry the model switch
+            await submitApiKeyApi(pendingModelSwitch, apiKey);
+            
+            // Now try the model switch again
+            updateLoading(true, 'Switching model...');
+            await switchModelApi(pendingModelSwitch);
+
+            setSelectedModel(pendingModelSwitch || pendingModelSwitch);
+            
+            setShowApiKeyDialog(false);
+            setPendingModelSwitch(null);
+            setApiKeyError('');
+            updateLoading(false);
+        } catch (error) {
+            // If the API key is still invalid, show error
+            setApiKeyError(error.message || 'Invalid API key. Please try again.');
+            updateLoading(false);
+            throw error; // Re-throw so the dialog component can handle it
+        }
+    }, [pendingModelSwitch, updateLoading]);
 
     const handleImageClick = (src) => {
         setModalImageSrc(src);
@@ -487,6 +525,17 @@ function App() {
                 onClose={() => setShowModelSwitcher(false)}
                 onSelectModel={handleSelectModel}
                 currentModel={selectedModel}
+            />
+            <ApiKeyDialog
+                show={showApiKeyDialog}
+                onClose={() => {
+                    setShowApiKeyDialog(false);
+                    setPendingModelSwitch(null);
+                    setApiKeyError('');
+                }}
+                onSubmit={handleApiKeySubmit}
+                modelName={pendingModelSwitch}
+                errorMessage={apiKeyError}
             />
             <ImageModal show={showImageModal} src={modalImageSrc} onClose={() => setShowImageModal(false)} />
         </Container>

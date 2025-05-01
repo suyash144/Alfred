@@ -651,20 +651,38 @@ def send_feedback():
             "error": str(e)
         })
 
-@app.route('/switch_model', methods=['POST'])
+@app.route('/api/switch_model', methods=['POST'])
 def switch_model():
 
     model = request.json.get('model')
-    g.state.model = model
-    g.state.api_key = get_api_key(model)
+    if not model:
+        return jsonify({'status': 'error', 'message': 'No model specified'}), 400
 
-    if not g.state.api_key:
-        # add some way for the user to enter the API key
-        logger.error("API key is required")
+    if not get_api_key(model):
         return jsonify({"status": "error", "message": "API key is required"}), 400
-
     else:
+        g.state.model = model
+        g.state.api_key = get_api_key(model)
         return jsonify({"status": "success", "message": f"Switched to model: {model}"}), 200
+
+@app.route('/api/store_api_key', methods=['POST'])
+def store_api_key():
+    data = request.json
+    model = data.get('model')
+    api_key = data.get('apiKey')
+    
+    if not model or not api_key:
+        return jsonify({
+            'status': 'error',
+            'message': 'Model and API key are required'
+        }), 400
+    
+    g.state.api_key = api_key
+    g.state.model = model
+    return jsonify({
+        'status': 'success',
+        'message': f'API key for {model} stored successfully'
+    }), 200
 
 @app.route('/save_analysis', methods=['POST'])
 def save_analysis():

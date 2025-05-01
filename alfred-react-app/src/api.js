@@ -94,7 +94,7 @@ export const getHistoryApi = async () => {
 
 export const switchModelApi = async (modelName) => {
     try {
-        const response = await fetch('/switch_model', {
+        const response = await fetch('/api/switch_model', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -102,17 +102,39 @@ export const switchModelApi = async (modelName) => {
             body: JSON.stringify({ model: modelName }),  // Ensure 'model' parameter is in request body
         });
         
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-            throw new Error(errorData.message || `Error: ${response.status}`);
-        }
-        
         const data = await response.json();
+        if (!response.ok) {
+            const error = new Error(data.message || 'Failed to switch model');
+            error.status = response.status;
+            throw error;
+        }
+
         return { status: 'success', data };
     } catch (error) {
         console.error('Error in switchModelApi:', error);
-        alert(`Failed to switch model: ${error.message}`);
-        return { status: 'error', message: error.message };
+        throw error;
+    }
+};
+
+export const submitApiKeyApi = async (model, apiKey) => {
+    try {
+        const response = await fetch('/api/store_api_key', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ model, apiKey }),
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to store API key');
+        }
+        
+        return { status: 'success', data };
+    } catch (error) {
+        console.error('Error in submitApiKeyApi:', error);
+        throw error; // Re-throw for handling in the component
     }
 };
 
