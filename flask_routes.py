@@ -765,9 +765,10 @@ def save_analysis():
                     f_out.write(f"```\n{cleaned_content}\n```\n\n")
 
                 elif entry_type == 'figure':
-                    if isinstance(content, str) and content.startswith('data:image/png;base64,'):
+                    img = content.get("image_url", {}).get("url", "")
+                    if isinstance(img, str) and img.startswith('data:image/png;base64,'):
                         try:
-                            base64_data = content.split(',', 1)[1]
+                            base64_data = img.split(',', 1)[1]
                             image_data = base64.b64decode(base64_data)
 
                             figure_counter[iteration] += 1 # Increment counter for this iteration
@@ -778,9 +779,9 @@ def save_analysis():
                             with open(figure_file_path, 'wb') as f_fig:
                                 f_fig.write(image_data)
                         except (IndexError, base64.binascii.Error, IOError) as img_err:
-                            logger.warning(f"Could not process/save figure data for iteration {iteration}: {img_err}. Content: {content[:100]}...")
+                            logger.warning(f"Could not process/save figure data for iteration {iteration}: {img_err}. Content: {img[:100]}...")
                     else:
-                        logger.warning(f"Skipping figure for iteration {iteration}: Content is not a valid base64 PNG data URI. Content: {str(content)[:100]}...")
+                        logger.warning(f"Skipping figure for iteration {iteration}: Image is not a valid base64 PNG data URI. Content: {str(img)[:100]}...")
 
 
         # --- 3. Save Metadata ---
