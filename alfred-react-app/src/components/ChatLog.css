@@ -35,7 +35,7 @@
 }
 
 .message-group.user-message .message-bubble {
-  background-color: #86cad3;
+  background-color: #7ed6ff;
   border-bottom-right-radius: 5px;
 }
 
@@ -57,7 +57,6 @@
 .message-group.user-message .iteration-label {
   text-align: right;
 }
-
 
 .chat-content {
   margin-top: 8px;
