@@ -34,6 +34,7 @@ COPY utils.py .
 COPY data_loader.py .
 COPY prompts.py .
 COPY flask_routes.py .
+COPY gunicorn_config.py .
 
 # Copy the built React app from the 'build-react' stage
 COPY --from=build-react /app/frontend/dist ./build
@@ -47,6 +48,4 @@ EXPOSE 5000
 # Set environment variables (DEBUG=True might be overridden by docker-compose)
 # ENV DEBUG=True
 
-# Command to run the application using a production server like gunicorn
-# Replace 'app:app' with 'your_filename:your_flask_instance' if different
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "-c", "gunicorn_config.py", "app:app"]

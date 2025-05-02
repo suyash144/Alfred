@@ -148,7 +148,7 @@ const DataSourceSelector = ({
                     <Form.Check
                         type="checkbox"
                         id="useCustomPrompt"
-                        label="Use custom initial prompt"
+                        label="Add an initial prompt"
                         checked={useCustomPrompt}
                         onChange={(e) => onUseCustomPromptChange(e.target.checked)}
                         disabled={isDisabled}
