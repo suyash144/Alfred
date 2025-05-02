@@ -664,7 +664,8 @@ def switch_model():
         return jsonify({'status': 'error', 'message': 'No model specified'}), 400
 
     if not get_api_key(model):
-        return jsonify({"status": "error", "message": "API key is required"}), 400
+        logger.info(f"API key for {model} not found")
+        return jsonify({"status": "error", "message": "API key is required"}), 401
     else:
         g.state.model = model
         g.state.api_key = get_api_key(model)
@@ -682,7 +683,14 @@ def store_api_key():
             'message': 'Model and API key are required'
         }), 400
     
-    g.state.api_key = api_key
+    # Store the API key as an environment variable
+    if model == 'gemini':
+        os.environ['API_KEY_GEM'] = api_key
+    elif model == 'claude':
+        os.environ['API_KEY_ANT'] = api_key
+    else:
+        os.environ['API_KEY_OAI'] = api_key
+    
     g.state.model = model
     return jsonify({
         'status': 'success',

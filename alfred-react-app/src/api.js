@@ -103,12 +103,21 @@ export const switchModelApi = async (modelName) => {
         });
 
         console.log("Switching model.")
-        
-        const data = await response.json();
+            
+        if (response.status === 401) {
+            const data = await response.json();
+            console.log("API key error:", data);
+            
+            // Create a specific error for API key requirement
+            const error = new Error(data.message || 'API key required for this model');
+            error.requiresApiKey = true;
+            throw error;
+        }
 
         return { status: 'success', data };
     } catch (error) {
-        console.error('Error in switchModelApi:', error);
+        console.log("No API key - must get from user.")
+        error.requiresApiKey = true;
         throw error;
     }
 };

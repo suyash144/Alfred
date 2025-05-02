@@ -375,12 +375,13 @@ function App() {
             updateLoading(false);
 
             // Check if the error is due to missing API key
-            if (error.message && (
+            if ((error.message && (
                 error.message.includes('API key') || 
                 error.message.includes('apiKey') || 
-                error.message.toLowerCase().includes('key required')
-            )) {
-                // Store the pending model change and show API key dialog
+                error.message.toLowerCase().includes('key required'))) ||
+                error.requiresApiKey 
+            ) {
+                console.log("Getting API key from user.")
                 setPendingModelSwitch(backendName);
                 setApiKeyError(error.message);
                 setShowApiKeyDialog(true);
@@ -394,10 +395,14 @@ function App() {
 
     const handleApiKeySubmit = useCallback(async (apiKey) => {
         if (!pendingModelSwitch) return;
+
+        console.log("Submitting API key for model switch:", pendingModelSwitch, apiKey);
         
         try {
             // Call an API to store the API key and retry the model switch
             await submitApiKeyApi(pendingModelSwitch, apiKey);
+
+            console.log("API key submitted successfully.");
             
             // Now try the model switch again
             updateLoading(true, 'Switching model...');
