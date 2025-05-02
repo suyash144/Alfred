@@ -1,8 +1,7 @@
 /* src/components/ChatLog.css */
 
 .chat-log-area {
-  height: 65vh; /* Adjust height as needed */
-  max-height: 700px;
+  height: 65vh;
   overflow-y: auto;
   border: 1px solid #ddd;
   border-radius: 8px;

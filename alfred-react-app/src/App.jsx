@@ -6,6 +6,7 @@ import Col from 'react-bootstrap/Col';
 import Button from 'react-bootstrap/Button';
 import Spinner from 'react-bootstrap/Spinner';
 import Collapse from 'react-bootstrap/Collapse';
+import Image from 'react-bootstrap/Image'; // For logo
 import Alert from 'react-bootstrap/Alert'; // For save status
 import './index.css'; // Your custom styles
 
@@ -23,6 +24,8 @@ import ChatInputArea from './components/ChatInputArea';
 import ModelSwitcherModal from './components/ModelSwitcherModal';
 import ApiKeyDialog from './components/ApiKeyDialog';
 import ImageModal from './components/ImageModal';
+import alfredLogo from './assets/alfred-logo.png';
+import alfredLogoMini from './assets/alfred-logo-small.png';
 
 // Import CSS
 import './App.css';
@@ -447,37 +450,114 @@ function App() {
 
     return (
         <Container className="mt-4">
-            <h1 className="mb-4">Alfred</h1>
+            {/* <h1 className="mb-4">Alfred</h1> */}
             <Row className="mb-4">
                 <Col>
                      <Collapse in={!isInitialized}>
                          <div>
-                            <ApiConfig apiKey={apiKey} selectedModel={selectedModel} onApiKeyChange={setApiKey} onModelChange={setSelectedModel} isDisabled={isLoading} />
-                            <DataSourceSelector dataSource={dataSource} selectedFiles={selectedFiles} useCustomPrompt={useCustomPrompt} customPromptText={customPromptText} onDataSourceChange={setDataSource} onFilesChange={setSelectedFiles} onUseCustomPromptChange={setUseCustomPrompt} onCustomPromptTextChange={setCustomPromptText} onPromptFileChange={setPromptFile} isDisabled={isLoading} />
+                            <Row className="mb-3 align-items-stretch"> {/* Use align-items-stretch or center */}
+                                <Col md={4} className="mb-3 mb-md-0 d-flex align-items-center justify-content-center">
+                                    <Image
+                                        src={alfredLogo}
+                                        alt="Alfred Assistant Illustration"
+                                        fluid 
+                                        rounded
+                                        style={{ maxHeight: '300px', objectFit: 'contain' }} // Adjust max height as needed
+                                    />
+                                </Col>
+                                <Col md={8}>
+                                    <ApiConfig
+                                        apiKey={apiKey}
+                                        selectedModel={selectedModel}
+                                        onApiKeyChange={setApiKey}
+                                        onModelChange={setSelectedModel}
+                                        isDisabled={isLoading}
+                                        // className="mb-3"
+                                    />
+                                </Col>
+                            </Row>
+                            <DataSourceSelector
+                                dataSource={dataSource}
+                                selectedFiles={selectedFiles}
+                                useCustomPrompt={useCustomPrompt}
+                                customPromptText={customPromptText}
+                                onDataSourceChange={setDataSource}
+                                onFilesChange={setSelectedFiles}
+                                onUseCustomPromptChange={setUseCustomPrompt}
+                                onCustomPromptTextChange={setCustomPromptText}
+                                onPromptFileChange={setPromptFile}
+                                isDisabled={isLoading}
+                            />
                         </div>
                     </Collapse>
 
-                    <div className="d-flex align-items-center mt-3">
-                        <Button 
-                            variant={isInitialized ? "danger" : "primary"} 
-                            onClick={handleInitialize} 
-                            disabled={isLoading}
-                            className="me-3" // Add right margin for spacing
-                        >
-                            {isLoading && processingStatus.toLowerCase().includes('init') ? 
-                                (<> <Spinner animation="border" size="sm" /> Initialising... </>) : 
-                                (isInitialized ? 'Restart Analysis' : 'Initialise Dataset')}
-                        </Button>
-                        
-                        {isInitialized && (
+                    <div className="d-flex align-items-center justify-content-between mt-3">
+                        <div className="d-flex align-items-center">
                             <Button 
-                                variant="warning"
-                                onClick={handleSwitchModel} 
+                                variant={isInitialized ? "danger" : "primary"} 
+                                onClick={handleInitialize} 
                                 disabled={isLoading}
+                                className="me-3" // Add right margin for spacing
                             >
-                                Switch Model
+                                {isLoading && processingStatus.toLowerCase().includes('init') ? 
+                                    (<> <Spinner animation="border" size="sm" /> Initialising... </>) : 
+                                    (isInitialized ? 'Restart Analysis' : 'Initialise Dataset')}
                             </Button>
-                        )}
+                            
+                            {isInitialized && (
+                                <Button 
+                                    variant="warning"
+                                    onClick={handleSwitchModel} 
+                                    disabled={isLoading}
+                                >
+                                    Switch Model
+                                </Button>
+                            )}
+                        </div>
+
+                        <div style={{
+                            position: 'absolute',
+                            left: '50%',
+                            transform: 'translate(-50%, 0%)', // Center horizontally AND vertically
+                            lineHeight: 0> {/* Wrapper for the logo */}
+                            }}>
+                            {isInitialized && (
+                                <Image
+                                    src={alfredLogoMini}
+                                    rounded
+                                    style={{
+                                        height: '38px', // Match default button height
+                                        width: 'auto',
+                                        display: 'block'
+                                    }}
+                                />
+                            )}
+                        </div>
+
+                        <div className="ms-auto d-flex align-items-center"> {/* Wrapper with ms-auto */}
+                            {isInitialized && (
+                                <Button
+                                    variant="primary"
+                                    onClick={handleSaveAnalysis}
+                                    disabled={isLoading || !isInitialized || saveStatus.type === 'info'}
+                                    id="save-analysis-btn"
+                                    className={saveStatus.message ? "me-2" : ""} // Add margin only if alert is shown
+                                >
+                                    {saveStatus.type === 'info' ? (<Spinner animation="border" size="sm" className="me-2" />) : (<i className="bi bi-download me-2"></i>)}
+                                    Save Analysis
+                                </Button>
+                            )}
+                            {/* Conditionally render Alert next to the button */}
+                            {saveStatus.message && (
+                                <Alert
+                                    variant={saveStatus.type === 'info' ? 'secondary' : saveStatus.type}
+                                    className="mb-0 py-1 px-3 d-inline-block"
+                                    style={{ lineHeight: '1.5' }} // Helps align text vertically with button text
+                                >
+                                    {saveStatus.message}
+                                </Alert>
+                            )}
+                        </div>
                     </div>
                 </Col>
             </Row>
@@ -507,16 +587,6 @@ function App() {
                             />
                         </div>
                     )}
-                </Col>
-            </Row>
-
-            <Row className="mt-5 mb-4">
-                <Col className="text-center">
-                    <Button variant="primary" size="lg" onClick={handleSaveAnalysis} disabled={isLoading || !isInitialized || saveStatus.type === 'info'} id="save-analysis-btn">
-                        {saveStatus.type === 'info' ? (<Spinner animation="border" size="sm" className="me-2" />) : (<i className="bi bi-download me-2"></i>)}
-                        Save Analysis
-                    </Button>
-                     {saveStatus.message && (<Alert variant={saveStatus.type === 'info' ? 'secondary' : saveStatus.type} className="mt-2 d-inline-block py-1 px-3">{saveStatus.message}</Alert>)}
                 </Col>
             </Row>
 

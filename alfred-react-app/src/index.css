@@ -83,10 +83,9 @@ button:focus-visible {
 .main-chat-container {
   display: flex;
   flex-direction: column;
-  /* Calculate height: viewport height minus header/footer/padding */
-  height: calc(85vh - 150px); /* Adjust 150px based on your header/footer heights */
-  min-height: 400px; /* Minimum height */
-  max-height: 750px; /* Maximum height */
+  height: calc(95vh - 150px); 
+  min-height: 400px; 
+  max-height: calc(95vh - 120px);
   border: 1px solid #ccc;
   border-radius: 8px;
   overflow: hidden; /* Prevent content spilling */
