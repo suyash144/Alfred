@@ -1,4 +1,3 @@
-# --- Keep your existing imports ---
 from flask import Flask, request, jsonify, send_file, send_from_directory # Added send_from_directory
 import os
 from utils import *
@@ -18,7 +17,6 @@ app = Flask(__name__,
 from flask_routes import *
 
 # --- Catch-All Route to Serve React App ---
-# It serves the main index.html file for any path not handled by API routes.
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react_app(path):
@@ -30,11 +28,8 @@ def serve_react_app(path):
     return send_from_directory(app.template_folder, 'index.html')
 
 
-# --- Main Execution Block (for local development mainly) ---
 if __name__ == '__main__':
 
-    # Get debug flag from environment variable or default
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-    # Start Flask app using development server (Gunicorn/Waitress used in Docker CMD)
     app.run(host='0.0.0.0', port=5000, debug=debug_mode)

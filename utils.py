@@ -40,7 +40,6 @@ class AppState:
     are specific to an instance.
     """
     def __init__(self):
-        # State variables that were previously globals
         self.conversation_history = []
         self.active_executions = {}
         self.execution_results = {}
@@ -97,9 +96,7 @@ def set_model_name(short_name):
 # Extract the actual base64 data from the data URL format
 ###############################################################################
 def extract_base64_from_data_url(data_url):
-    # Find where the actual base64 data begins after the prefix
     base64_start = data_url.find("base64,") + len("base64,")
-    # Return only the base64 part
     return data_url[base64_start:]
 
 ###############################################################################
@@ -111,12 +108,10 @@ def build_llm_prompt(conversation_history, MODEL_NAME, response_type):
     For text entries, we maintain the existing format.
     For figure entries, we handle them specially to be passed as images.
     """
-    # We'll store content parts for the final user message
     content_parts = []
-    # And normal text history for context as before
     history_text = []
     
-    # First build the text history as before for context
+    # First build the text history for context
     for entry in conversation_history:
         role = entry.get("role", "user")
         content = entry.get("content", "")
@@ -269,7 +264,7 @@ def run_code_in_process(code, analysis_namespace, pipe_conn):
         sys.stdout = old_stdout
         output_text = redirected_output.getvalue()
         
-        # If no output was generated, provide a helpful message
+        # If no output was generated
         if len(output_text) == 0 and len(figures) == 0:
             output_text = "Please make sure your code prints something to stdout or generates some figures."
     
@@ -293,7 +288,7 @@ def collect_matplotlib_figures():
     return figs
 
 ###############################################################################
-# Functions to safely load JSON from LLM output
+# Functions to safely load JSON from LLM output (all now obsolete)
 ###############################################################################
 def extract_json_dict(text):
     """
