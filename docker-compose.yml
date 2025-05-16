@@ -3,8 +3,21 @@ services:
     build: .
     ports:
       - "5000:5000"
+    volumes:
+      - type: volume
+        source: smb-data
+        target: /zortex
+        read_only: true
     environment:
       - DEBUG=True
       - API_KEY_ANT=${API_KEY_ANT}
       - API_KEY_OAI=${API_KEY_OAI}
       - API_KEY_GEM=${API_KEY_GEM}
+
+volumes:
+  smb-data:
+    driver: local
+    driver_opts:
+      type: cifs
+      o: "username=Student,password=C0rt8xLabRO,vers=3.0,ro"
+      device: "//zortex.cortexlab.net/Subjects"
