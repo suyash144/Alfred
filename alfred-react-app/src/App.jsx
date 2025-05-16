@@ -284,7 +284,9 @@ function App() {
         } else if (buttonState === 'analyse') {
             // 1. Get the Code first
             updateLoading(true, 'Generating code...');
-            const codeAnalysisResponse = await getAnalysisApi('code');
+            const codeAnalysisResponse = await getAnalysisApi('code', feedbackInput);
+            setFeedbackInput('');
+            setButtonState('analyse');
 
             // Fetch history immediately to show the code bubble
             await fetchHistory();

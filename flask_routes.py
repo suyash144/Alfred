@@ -225,6 +225,7 @@ def get_analysis():
     logger.info(f"Getting analysis with conversation history length: {len(g.state.conversation_history)}")
 
     response_type = request.args.get('response_type', 'text')
+    text_input = request.args.get('text_input', '')
 
     try:
         model_name = g.state.model
@@ -233,11 +234,15 @@ def get_analysis():
 
         if response_type == "code":
             # Log the user command in conversation history
+            if text_input:
+                text = text_input
+            else:
+                text = "Analyse"
             g.state.conversation_history.append({
                 "role": "user", 
                 "type": "text",
                 "iteration": g.state.iteration_count,
-                "content": "Analyse"
+                "content": text
             })
         
         # Build prompt and call LLM

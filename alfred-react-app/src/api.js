@@ -24,10 +24,10 @@ export const initializeApi = async (formData) => {
     }
 };
 
-export const getAnalysisApi = async (responseType) => {
+export const getAnalysisApi = async (responseType, textInput) => {
     try {
         const response = await axios.get(`${API_BASE_URL}/get_analysis`, {
-            params: { response_type: responseType },
+            params: { response_type: responseType, text_input: textInput },
         });
         return { status: 'success', data: response.data };
     } catch (error) {
