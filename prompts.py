@@ -143,5 +143,5 @@ NOW_CONTINUE_FDBK = (
 NOW_CONTINUE_INIT = (
     "There is currently no data to analyse. Write a short text response explaining how you plan to load the data." \
     "You should have been told how to load the data in the prompt, but in case you were not, ask for clarification." \
-    "For example, if you are told to load IBL data, you should use the ONE API."
+    "Do not make guesses or assume anything about the data content as you currently don't know anything about it."
 )

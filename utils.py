@@ -110,11 +110,16 @@ def build_llm_prompt(conversation_history, MODEL_NAME, response_type):
     """
     content_parts = []
     history_text = []
+
+    user_entries = 0
     
     # First build the text history for context
     for entry in conversation_history:
         role = entry.get("role", "user")
         content = entry.get("content", "")
+
+        if role == "user":
+            user_entries += 1
         
         # Add special handling for figure entries in the text representation
         if role == "figure":
@@ -131,10 +136,10 @@ def build_llm_prompt(conversation_history, MODEL_NAME, response_type):
     elif response_type == "both":
         now_cont = NOW_CONTINUE_BOTH
     else:
-        if len(conversation_history) > 0:
-            now_cont = NOW_CONTINUE_TEXT
-        else:
+        if len(conversation_history) == 1 and user_entries == 1:
             now_cont = NOW_CONTINUE_INIT
+        else:
+            now_cont = NOW_CONTINUE_TEXT
     
     # Create the text prompt
     text_prompt = (
