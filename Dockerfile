@@ -35,6 +35,7 @@ COPY data_loader.py .
 COPY prompts.py .
 COPY flask_routes.py .
 COPY gunicorn_config.py .
+COPY ibl_prompt.md .
 
 # Copy the built React app from the 'build-react' stage
 COPY --from=build-react /app/frontend/dist ./build

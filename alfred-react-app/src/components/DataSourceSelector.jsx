@@ -89,7 +89,6 @@ const DataSourceSelector = ({
                     checked={dataSource === 'custom'}
                     onChange={handleDataSourceRadio}
                     disabled={isDisabled}
-                    className="mb-2"
                 />
                 <Form.Check
                     type="radio"
@@ -98,6 +97,16 @@ const DataSourceSelector = ({
                     id="noData"
                     value="none"
                     checked={dataSource === 'none'}
+                    onChange={handleDataSourceRadio}
+                    disabled={isDisabled}
+                />
+                <Form.Check
+                    type="radio"
+                    label="Analyse IBL (International Brain Lab) data"
+                    name="dataSource"
+                    id="IBLData"
+                    value="ibl"
+                    checked={dataSource === 'ibl'}
                     onChange={handleDataSourceRadio}
                     disabled={isDisabled}
                     className="mb-2"
