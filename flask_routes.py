@@ -129,6 +129,40 @@ def init_data():
             "message": f"Successfully processed {len(uploaded_files)} custom data file(s)"
         })
     
+    elif data_source == 'ibl':
+        logger.info("Analysing IBL data. Loading default IBL prompt.")
+        ibl_prompt_file_path = os.path.join(os.getcwd(), "ibl_prompt.md")
+
+        try:
+            with open(ibl_prompt_file_path, 'r', encoding='utf-8') as f:
+                ibl_prompt = f.read()
+            logger.info("Successfully loaded IBL prompt")
+        except FileNotFoundError:
+            logger.error(f"ibl_prompt.md not found at {ibl_prompt_file_path}")
+            return jsonify({"status": "error", "message": "IBL prompt file not found."}), 500
+        except Exception as e:
+            logger.error(f"Error reading ibl_prompt.md: {e}")
+            return jsonify({"status": "error", "message": f"Error reading IBL prompt file: {e}"}), 500
+        
+        g.state.conversation_history.append({
+            "role": "user",
+            "type": "text",
+            "iteration": g.state.iteration_count,
+            "content": ibl_prompt
+        })
+
+        if custom_prompt:
+            logger.info("Custom prompt also provided")
+            # Add the custom prompt as the first user prompt.
+            g.state.conversation_history.append({
+                "role": "user",
+                "type": "text",
+                "iteration": g.state.iteration_count,
+                "content": custom_prompt
+            })
+
+        return jsonify({"status": "success", "message": "Ready to analyse IBL data."})
+
     else:
         if not custom_prompt:
             logger.warning("User is not uploading data and no custom prompt provided")

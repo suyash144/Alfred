@@ -262,7 +262,7 @@ def run_code_in_process(code, analysis_namespace, pipe_conn):
     
     except Exception as e:
         error_flag = True
-        print(f"Execution Error: {str(e)}")
+        print(str(e))
     
     finally:
         # Get the captured output
