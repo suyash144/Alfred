@@ -1,6 +1,6 @@
 services:
   app:
-    build: .
+    image: ghcr.io/suyash144/alfred:latest
     ports:
       - "5000:5000"
     volumes:
