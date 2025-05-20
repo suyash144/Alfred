@@ -34,7 +34,7 @@ import './components/ChatLog.css';
 function App() {
     // --- State Variables ---
     const [apiKey, setApiKey] = useState('');
-    const [selectedModel, setSelectedModel] = useState('gemini');
+    const [selectedModel, setSelectedModel] = useState('claude');
     const [dataSource, setDataSource] = useState('auto');
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [useCustomPrompt, setUseCustomPrompt] = useState(false);
