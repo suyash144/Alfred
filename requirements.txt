@@ -21,4 +21,5 @@ iblatlas
 iblutil
 ONE-api
 torch
+opencv-python
 rastermap

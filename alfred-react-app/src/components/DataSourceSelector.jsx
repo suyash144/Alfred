@@ -47,6 +47,7 @@ const DataSourceSelector = ({
         if (file) {
             setPromptFileName(file.name);
             const reader = new FileReader();
+            const fileExtension = file.name.split('.').pop().toLowerCase();
             
             reader.onload = (event) => {
                 const content = event.target.result;
@@ -61,7 +62,7 @@ const DataSourceSelector = ({
                 } else {
                     // For binary files, show file info instead of content
                     setPromptFileContentPreview(
-                        `[Binary file: ${formatFileSize(file.size)}, type: ${file.type || 'unknown'}]`
+                        `[Binary file: ${formatFileSize(file.size)}, type: ${file.type || fileExtension}]`
                     );
                 }
                 
@@ -236,6 +237,7 @@ const DataSourceSelector = ({
                                     <Form.Group controlId="promptFile" className="mb-3">
                                         <Form.Control
                                             type="file"
+                                            accept=".txt,.js,.py,.html,.css,.json,.xml,.md,.csv,.ipynb,.r,.sh,.bat,.ps1,.yaml,.yml,.toml,.ini,.cfg,.conf"
                                             onChange={handlePromptFileSelect}
                                             disabled={isDisabled}
                                         />
