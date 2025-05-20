@@ -21,3 +21,4 @@ iblatlas
 iblutil
 ONE-api
 torch
+rastermap
