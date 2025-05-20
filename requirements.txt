@@ -20,3 +20,4 @@ brainbox-ibl
 iblatlas
 iblutil
 ONE-api
+torch

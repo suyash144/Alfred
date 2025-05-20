@@ -122,6 +122,8 @@ SYSTEM_PROMPT = ("""
 NOW_CONTINUE_TEXT = (
     "Now continue with a new step: Summarise what is known so far about the data, making sure to include any new discoveries you have made (and how you inferred them) and "
     "propose some open questions. Follow the format outlined in the system prompt. Do not write any code."
+    "If you have not written any code or done any analyses yet, do not make any guesses or assumptions about the data beyond what you are explicitly told."
+    "ALWAYS wait for computational confirmation before making any claims about the data."
 )
 
 NOW_CONTINUE_CODE = ("""

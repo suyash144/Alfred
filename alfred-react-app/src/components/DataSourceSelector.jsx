@@ -38,32 +38,88 @@ const DataSourceSelector = ({
         onDataSourceChange(e.target.value);
     };
 
-     const handleFileSelect = (e) => {
+    const handleFileSelect = (e) => {
         onFilesChange(Array.from(e.target.files));
     };
 
-     const handlePromptFileSelect = (e) => {
+    const handlePromptFileSelect = (e) => {
         const file = e.target.files[0];
         if (file) {
             setPromptFileName(file.name);
             const reader = new FileReader();
+            
             reader.onload = (event) => {
                 const content = event.target.result;
-                setPromptFileContentPreview(content.length > 200 ? content.substring(0, 200) + '...' : content);
+                
+                const isLikelyText = isTextFile(file);
+                
+                if (isLikelyText) {
+                    // For text files, show content preview
+                    setPromptFileContentPreview(
+                        content.length > 200 ? content.substring(0, 200) + '...' : content
+                    );
+                } else {
+                    // For binary files, show file info instead of content
+                    setPromptFileContentPreview(
+                        `[Binary file: ${formatFileSize(file.size)}, type: ${file.type || 'unknown'}]`
+                    );
+                }
+                
                 onPromptFileChange(file); // Pass the file object up
             };
-             reader.onerror = () => {
-                 alert('Error reading prompt file.');
-                 setPromptFileName('');
-                 setPromptFileContentPreview('');
-                 onPromptFileChange(null);
-             };
-            reader.readAsText(file);
+            
+            reader.onerror = () => {
+                alert('Error reading file.');
+                setPromptFileName('');
+                setPromptFileContentPreview('');
+                onPromptFileChange(null);
+            };
+            
+            // Determine how to read the file
+            if (isTextFile(file)) {
+                reader.readAsText(file);
+            } else {
+                // For binary files, we'll use readAsArrayBuffer for efficiency
+                // The preview will show metadata rather than content
+                reader.readAsArrayBuffer(file);
+            }
         } else {
             setPromptFileName('');
             setPromptFileContentPreview('');
             onPromptFileChange(null);
         }
+    };
+
+    const isTextFile = (file) => {
+        // Common text file types
+        const textTypes = [
+            'text/', 'application/json', 'application/javascript', 
+            'application/xml', 'application/x-httpd-php',
+            'application/x-python', 'application/x-jupyter'
+        ];
+        
+        // Check MIME type first
+        if (file.type) {
+            return textTypes.some(type => file.type.startsWith(type));
+        }
+        
+        // Fallback to extension check if MIME type is not available
+        const textExtensions = [
+            '.txt', '.js', '.py', '.html', '.css', '.json', '.xml', 
+            '.md', '.csv', '.ipynb', '.r', '.sh', '.bat', '.ps1', 
+            '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf'
+        ];
+        
+        return textExtensions.some(ext => 
+            file.name.toLowerCase().endsWith(ext)
+        );
+    };
+
+    // Helper to format file size nicely
+    const formatFileSize = (bytes) => {
+        if (bytes < 1024) return bytes + ' bytes';
+        else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        else return (bytes / 1048576).toFixed(1) + ' MB';
     };
 
     return (
@@ -180,11 +236,10 @@ const DataSourceSelector = ({
                                     <Form.Group controlId="promptFile" className="mb-3">
                                         <Form.Control
                                             type="file"
-                                            accept=".txt,.md"
                                             onChange={handlePromptFileSelect}
                                             disabled={isDisabled}
                                         />
-                                        <Form.Text muted>Upload a .txt or .md file.</Form.Text>
+                                        <Form.Text muted>Upload a context/instructions file.</Form.Text>
                                     </Form.Group>
                                      {promptFileName && (
                                         <Card className="mt-3 p-2 bg-light">
