@@ -13,10 +13,12 @@ const ChatInputArea = ({
     onActionClick,
     isLoading,
     isInitialized,
-    processingStatus
+    processingStatus,
+    onFileUpload
 }) => {
 
     const textareaRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     // Auto-resize function
     const adjustTextareaHeight = () => {
@@ -57,6 +59,23 @@ const ChatInputArea = ({
         setTimeout(adjustTextareaHeight, 0);
     };
 
+    // Handle file upload
+    const handleFileUpload = (event) => {
+        const files = event.target.files;
+        if (files && files.length > 0 && onFileUpload) {
+            onFileUpload(files);
+        }
+        // Reset the input so the same file can be selected again if needed
+        event.target.value = '';
+    };
+
+    // Trigger file input click
+    const triggerFileUpload = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        }
+    };
+
     // Determine main action button text and variant
     const actionButtonVariant = buttonState === 'stop' ? 'danger' : 'warning';
     const actionButtonText = buttonState === 'stop' ? 'Stop' : 'Analyse'; // Shorter text
@@ -76,6 +95,27 @@ const ChatInputArea = ({
              )}
 
             <InputGroup>
+
+            <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileUpload}
+                style={{ display: 'none' }}
+                accept=".txt,.csv,.json,.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.py,.ipynb,.md"
+            />
+            
+            {/* File upload button */}
+            <Button
+                variant="secondary"
+                onClick={triggerFileUpload}
+                disabled={isLoading}
+                className="file-upload-button me-2"
+                title="Upload files"
+            >
+                <i className="bi bi-paperclip"></i>
+            </Button>
+
             <Form.Control
                     ref={textareaRef}
                     as="textarea"

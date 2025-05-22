@@ -49,6 +49,7 @@ function App() {
     const [currentSummary, setCurrentSummary] = useState('');
     // const [currentCode, setCurrentCode] = useState(''); // Maybe not needed if code is just in history? Re-add if needed.
     const [feedbackInput, setFeedbackInput] = useState('');
+    const [uploadedFiles, setUploadedFiles] = useState([]);
 
     const [buttonState, setButtonState] = useState('analyse'); // 'analyse', 'stop'
     const [executionId, setExecutionId] = useState(null);
@@ -104,7 +105,20 @@ function App() {
         setProcessingStatus(status);
     };
 
-     const fetchHistory = useCallback(async () => {
+    const handleFileUpload = useCallback((files) => {
+        // Convert FileList to Array
+        const fileArray = Array.from(files);
+        
+        console.log('Files uploaded:', fileArray);
+        
+        // Store files in state
+        setUploadedFiles(prev => [...prev, ...fileArray]);
+
+        alert(`Files uploaded: ${fileArray.map(file => file.name).join(', ')}`);
+
+    }, []);
+
+    const fetchHistory = useCallback(async () => {
         const response = await getHistoryApi();
         if (response.status === 'success' && response.data?.history) {
             // Only update if content differs to avoid unnecessary re-renders
@@ -323,21 +337,28 @@ function App() {
     }, [buttonState, codeExecutionInProgress, executionId, clearExecutionState, fetchHistory, currentSummary]);
 
     const handleSendFeedback = useCallback(async () => {
-        if (!feedbackInput.trim()) { alert('Please enter feedback.'); return; }
-        updateLoading(true, 'Loading...');
-        // Backend adds feedback to history
-        const response = await sendFeedbackApi(feedbackInput, currentSummary);
-
-        if (response.status === 'success') {
-            // The response might contain the next text analysis, but we rely on fetchHistory
-            setFeedbackInput('');
-            setButtonState('analyse'); // Ready for next code gen/execution step
-        } else {
-            setFeedbackInput(currentInput);
+        if (!feedbackInput.trim() && uploadedFiles.length === 0) { 
+            alert('Please enter feedback or upload files.'); 
+            return; 
         }
+        
+        updateLoading(true, 'Loading...');
+        
+        // Use the updated sendFeedbackApi with optional files parameter
+        const response = await sendFeedbackApi(
+            feedbackInput, 
+            uploadedFiles.length > 0 ? uploadedFiles : null // files parameter
+        );
+    
+        if (response.status === 'success') {
+            setFeedbackInput('');
+            setUploadedFiles([]); // Clear uploaded files
+            setButtonState('analyse');
+        }
+        
         updateLoading(false);
-        await fetchHistory(); // Refresh history to show feedback and the new text analysis
-    }, [feedbackInput, currentSummary, fetchHistory]);
+        await fetchHistory();
+    }, [feedbackInput, uploadedFiles, fetchHistory]);
 
     const handleSwitchModel = useCallback(() => {
         setShowModelSwitcher(true);
@@ -586,6 +607,7 @@ function App() {
                                 feedbackInput={feedbackInput}
                                 onFeedbackChange={(e) => setFeedbackInput(e.target.value)} // Pass simple handler
                                 onSendFeedback={handleSendFeedback}
+                                onFileUpload={handleFileUpload}
                                 buttonState={buttonState}
                                 onActionClick={handleActionClick}
                                 isLoading={isLoading}

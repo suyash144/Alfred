@@ -174,10 +174,10 @@ const DataSourceSelector = ({
                         <Card className="file-upload-container mt-3">
                              <Card.Body>
                                 <Form.Group controlId="dataFile" className="mb-3">
-                                    <Form.Label>Upload Data Files (.npy, .csv, .json)</Form.Label>
+                                    <Form.Label>Upload Data Files (.npy, .csv, .json, .txt)</Form.Label>
                                     <Form.Control
                                         type="file"
-                                        accept=".npy,.csv,.json"
+                                        accept=".npy,.csv,.json,.txt,.md"
                                         multiple
                                         onChange={handleFileSelect}
                                         disabled={isDisabled}

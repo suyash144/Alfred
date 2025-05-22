@@ -14,6 +14,7 @@ import logging
 import signal
 import dill
 from prompts import *
+from werkzeug.utils import secure_filename
 
 # Configure logging
 logging.basicConfig(
@@ -606,6 +607,54 @@ def process_llm_response(response, response_type):
             response = response[:response.find("```python")]
     
     return response
+
+###############################################################################
+# Process files uploaded mid-session (called in the feedback route)
+###############################################################################
+def process_fdbk_files(files_data):
+    """
+    Simple wrapper to convert base64 files_data to format expected by process_uploaded_files
+    
+    Args:
+        files_data (list): List of file objects with base64 content from frontend
+    """
+    if not files_data:
+        return
+    
+    # Create uploads directory if it doesn't exist
+    upload_dir = 'uploads'
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # Convert base64 files to saved files and create file_info structure
+    file_info = []
+    
+    for file_data in files_data:
+        try:
+            # Extract file information
+            filename = secure_filename(file_data.get('name', 'unknown'))
+            base64_content = file_data.get('content', '')
+            
+            # Decode and save file
+            file_content = base64.b64decode(base64_content)
+            file_path = os.path.join(upload_dir, filename)
+            
+            with open(file_path, 'wb') as f:
+                f.write(file_content)
+            
+            # Create file_info entry in expected format
+            file_info.append({
+                'name': filename,
+                'path': file_path,
+                'type': filename.rsplit('.', 1)[1].lower() if '.' in filename else 'unknown'
+            })
+            
+        except Exception as e:
+            print(f"Error processing file {file_data.get('name', 'unknown')}: {str(e)}")
+            continue
+    
+    # Use existing function
+    if file_info:
+        return file_info
 
 ###############################################################################
 # Handle server-side API errors

@@ -72,9 +72,41 @@ export const stopExecutionApi = async (executionId) => {
     }
 };
 
-export const sendFeedbackApi = async (feedback, summary, code) => {
+export const sendFeedbackApi = async (feedback, files = null) => {
     try {
-        const response = await axios.post(`${API_BASE_URL}/send_feedback`, { feedback, summary, code });
+        let requestData = {
+            feedback
+        };
+                
+        // Convert files to base64 if present
+        if (files && files.length > 0) {
+            const filePromises = Array.from(files).map(async (file) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        resolve({
+                            name: file.name,
+                            type: file.type,
+                            size: file.size,
+                            content: reader.result.split(',')[1], // Remove data:... prefix
+                            lastModified: file.lastModified
+                        });
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            });
+            
+            const fileData = await Promise.all(filePromises);
+            requestData.files = fileData;
+        }
+        
+        const response = await axios.post(`${API_BASE_URL}/send_feedback`, requestData, {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+        
         return { status: 'success', data: response.data };
     } catch (error) {
         return handleApiError(error, 'Error sending feedback');
