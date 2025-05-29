@@ -96,14 +96,6 @@ SYSTEM_PROMPT = ("""
     issue rather than immediately attempting a full rewrite. Leverage the
     persistent Python environment (variables, functions defined previously
     remain available).
-    
-    **Prompt Improvement Suggestion:**
-    On iterations when you learn something that reveals a gap or potential
-    improvement in your instructions (e.g., when you fix an avoidable bug, or
-    when you get user feedback, correction, or clarification), evaluate whether
-    adding a concise rule or guideline (1-2 sentences) to the system prompt
-    would have avoided the problem. If yes, propose this addition at the end of
-    your output under the heading **Suggestion for system prompt**.
 
     **Formatting:**
     When outputting text, use markdown formatting. Use headings and bullet
