@@ -40,7 +40,7 @@ const ApiKeyDialog = ({ show, onClose, onSubmit, modelName, errorMessage }) => {
   const getModelDisplayName = () => {
     const modelMap = {
       'gemini': 'Gemini 2.5 Pro',
-      'claude': 'Claude 3.7 Sonnet',
+      'claude': 'Claude 4 Sonnet',
       'o1': 'o1',
       'gpt': 'GPT-4.1'
     };

@@ -80,8 +80,8 @@ def set_model_name(short_name):
         logger.info("Using model: o1")
         return "o1-2024-12-17"
     elif short_name == "claude":
-        logger.info("Using model: Claude 3.7 Sonnet")
-        return "claude-3-7-sonnet-20250219"
+        logger.info("Using model: Claude 4 Sonnet")
+        return "claude-sonnet-4-20250514"
     elif short_name == "gemini":
         logger.info("Using model: Gemini 2.5 Pro (Note: Free but limited token rate)")
         return "gemini-2.5-pro-exp-03-25"

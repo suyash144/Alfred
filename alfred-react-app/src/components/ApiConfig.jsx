@@ -30,7 +30,7 @@ const ApiConfig = ({ apiKey, selectedModel, onApiKeyChange, onModelChange, isDis
                         disabled={isDisabled}
                     >
                         <option value="gemini">Gemini 2.5 Pro (Free, rate-limited)</option>
-                        <option value="claude">Claude 3.7 Sonnet</option>
+                        <option value="claude">Claude 4 Sonnet</option>
                         <option value="o1">OpenAI o1</option>
                         <option value="gpt">OpenAI GPT-4.1</option>
                     </Form.Select>

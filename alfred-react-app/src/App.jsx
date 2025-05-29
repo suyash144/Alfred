@@ -359,7 +359,7 @@ function App() {
             cleanName = 'GPT-4.1';
             backendName = 'gpt';
         } else if (modelId === 'claude'){
-            cleanName = 'Claude 3.7 Sonnet';
+            cleanName = 'Claude 4 Sonnet';
             backendName = 'claude';
         } else if (modelId === 'gemini'){
             cleanName = 'Gemini 2.5 Pro';

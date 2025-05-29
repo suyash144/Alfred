@@ -19,7 +19,7 @@ const ModelSwitcherModal = ({ show, onClose, onSelectModel, currentModel }) => {
 
   const models = [
     { id: 'gemini', name: 'Gemini 2.5 Pro', description: 'Google\'s advanced multimodal model' },
-    { id: 'claude', name: 'Claude 3.7 Sonnet', description: 'Anthropic\'s balanced reasoning model' },
+    { id: 'claude', name: 'Claude 4 Sonnet', description: 'Anthropic\'s balanced reasoning model' },
     { id: 'o1', name: 'o1', description: 'OpenAI\'s cutting-edge reasoning model' },
     { id: 'gpt', name: 'GPT-4.1', description: 'OpenAI\'s multimodal foundation model' }
   ];
