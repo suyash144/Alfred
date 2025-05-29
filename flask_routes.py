@@ -29,6 +29,7 @@ def init_data():
 
     g.state.conversation_history = []
     g.state.iteration_count = 0
+    g.state.analysis_namespace = {}
     
     api_key = request.form.get('apiKey', '')
     model = request.form.get('model', 'gemini')
@@ -188,10 +189,6 @@ def init_data():
 def process_uploaded_files(file_info):
     """Process uploaded files and store them in the analysis_namespace"""
     
-    # Clear any existing 'x' data to avoid confusion
-    if 'x' in g.state.analysis_namespace:
-        del g.state.analysis_namespace['x']
-    
     processed_files = []
     
     for file in file_info:
@@ -232,25 +229,39 @@ def process_uploaded_files(file_info):
                 else:
                     processed_files.append((var_name, f"Python object (not list or dict) loaded from a JSON file"))
                 logger.info(f"Loaded JSON file: {file_path} as {var_name}")
+
+            elif file_type == 'txt' or file_type == 'md':
+                with open(file_path) as f:
+                    txtfile = f.read()
+                var_name = f'txt_{base_name}'
+                g.state.analysis_namespace[var_name] = txtfile
+                logger.info(f"Loaded text file: {file_path} as {var_name}")
+                g.state.conversation_history.append({
+                    "role": "assistant",
+                    "type": "text",
+                    "iteration": g.state.iteration_count,
+                    "content": f"Text file loaded as string: \n{txtfile} \n\nAdded as variable {var_name}."
+                })
                 
         except Exception as e:
             logger.error(f"Error processing file {file_path}: {str(e)}")
             continue
     
     # Create a data inventory message for the conversation history
-    data_inventory = "Available data variables:\n"
-    for var_name, description in processed_files:
-        data_inventory += f"- {var_name}: {description}\n"
+    if processed_files:
+        data_inventory = "Added the following variables:\n"
+        for var_name, description in processed_files:
+            data_inventory += f"- {var_name}: {description}\n"
+            
+        # Add this inventory to the conversation history
+        g.state.conversation_history.append({
+            "role": "assistant",
+            "type": "text",
+            "iteration": g.state.iteration_count,
+            "content": data_inventory
+        })
         
-    # Add this inventory to the conversation history
-    g.state.conversation_history.append({
-        "role": "assistant",
-        "type": "text",
-        "iteration": g.state.iteration_count,
-        "content": data_inventory
-    })
-    
-    logger.info(f"Processed {len(processed_files)} files successfully")
+        logger.info(f"Processed {len(processed_files)} files successfully")
     return f"Successfully loaded {len(file_info)} file(s). Data inventory added to conversation."
 
 @app.route('/get_analysis', methods=['GET'])
@@ -647,6 +658,7 @@ def send_feedback():
     """Send user feedback and get next analysis"""
 
     feedback = request.json.get('feedback', '')
+    files_data = request.json.get('files', [])
     iter = g.state.iteration_count
     
     logger.info(f"Feedback route - Current history length: {len(g.state.conversation_history)}")
@@ -658,6 +670,10 @@ def send_feedback():
         "iteration": iter,
         "content": feedback
     })
+    
+    if files_data:
+        file_info = process_fdbk_files(files_data)
+        process_uploaded_files(file_info)
     
     logger.debug(f"Feedback route - Updated history length: {len(g.state.conversation_history)}")
     
