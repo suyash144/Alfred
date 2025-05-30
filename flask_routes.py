@@ -389,8 +389,12 @@ def execute_code():
                 if parent_conn.poll(600.0):  # 600 second timeout
                     output_text, figures, _, had_error, new_namespace = parent_conn.recv()
 
+                    logger.info(f"Received execution results for {execution_id}")
+
                     # Update analysis namespace
                     state.analysis_namespace.update(dill.loads(new_namespace))
+
+                    logger.info(f"Updated analysis namespace with new variables from execution {execution_id}")
                     
                     # Check if execution was terminated
                     if output_text == "TERMINATED":
@@ -425,12 +429,16 @@ def execute_code():
                             }
                         })
                     
+                    logger.info(f"processed figures for execution {execution_id}")
+                    
                     # Store the results for retrieval
                     state.execution_results[execution_id]['status'] = 'completed'
                     state.execution_results[execution_id]['output'] = output_text
                     state.execution_results[execution_id]['figures'] = figure_data
                     state.execution_results[execution_id]['error'] = had_error
                     state.execution_results[execution_id]['complete'] = True
+
+                    logger.info(f"stored execution results for {execution_id}")
                     
                     # Add output to conversation history if it exists
                     if had_error:
@@ -448,6 +456,8 @@ def execute_code():
                             "iteration": state.iteration_count,
                             "content": "Code Output:\n" + output_text
                         })
+
+                    logger.info(f"Execution {execution_id} completed successfully")
                     
                 else:
                     # Timeout occurred
