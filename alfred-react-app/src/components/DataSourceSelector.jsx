@@ -197,7 +197,10 @@ const DataSourceSelector = ({
                                                          {file.name.endsWith('.csv') ? '📊' : '📁'} <strong>{file.name}</strong>
                                                     </span>
                                                     <span className="badge bg-primary rounded-pill">
-                                                        {(file.size / 1024).toFixed(1)} KB
+                                                        {file.size > 1024 * 1024 
+                                                            ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+                                                            : `${(file.size / 1024).toFixed(1)} KB`
+                                                        }
                                                     </span>
                                                 </ListGroup.Item>
                                             ))}
